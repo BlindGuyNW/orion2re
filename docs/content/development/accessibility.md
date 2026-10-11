@@ -51,6 +51,6 @@ Per-screen recipes should replace the generic one wherever a screen draws its va
 
 When the focused control changes, the pointer moves to the centre of its field so that the game's hover highlight follows the cursor.
 
-A recipe may also declare a `Poll` hook, run every tick while it is attached, for changes that move no focus, such as the galaxy screen's system display opening inside the main loop.
+A recipe may also declare a `Poll` hook, run every tick while it is attached, to notice changes inside the screen's own loop, such as the galaxy screen's system display opening. Rather than speaking, it calls `navigator::Request_Focus_Stop()`: the differ moves focus into that Tab-stop on its next pass and announces the landing, so every focus change is still spoken from one place.
 
 The galaxy recipe lists every star by distance from the player's capital, using the same visibility rules as the drawn star names, and fleets only from the detection-filtered ship icons. The main loop hit-tests the pointer when its map grid is pressed, so a star node places the pointer on a point that `MAINSCR::Find_Star_At_XY` and `Find_Ship_Icon_At_XY` resolve to that star, and presses the grid. A star outside the current view is first brought into view with `MAINSCR::Center_Map`, as the game's mini-map does, so the player never manages zoom or scrolling.

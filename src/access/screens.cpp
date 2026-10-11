@@ -692,6 +692,8 @@ namespace access::screens {
         int16_t pending_star = -1;
         int32_t pending_star_ticks = 0;
 
+        void Await_Star_(int16_t star_idx);
+
         void Say_Star_Unreachable_(int16_t star_idx) {
             speech::Say(vocab::Format(vocab::VOCAB_STAR_UNREACHABLE, Star_Label_(star_idx)), true);
         }
@@ -701,6 +703,7 @@ namespace access::screens {
         void Activate_Star_(int16_t star_idx) {
             pending_star = -1;
             if (Ship_Icons_Are_Drawn_() && Press_Star_(star_idx)) {
+                Await_Star_(star_idx);
                 return;
             }
             if (!MAINSCR::Star_On_Screen(star_idx)) {
@@ -721,7 +724,9 @@ namespace access::screens {
             }
             int16_t star_idx = pending_star;
             pending_star = -1;
-            if (!Press_Star_(star_idx)) {
+            if (Press_Star_(star_idx)) {
+                Await_Star_(star_idx);
+            } else {
                 Say_Star_Unreachable_(star_idx);
             }
         }
@@ -772,6 +777,32 @@ namespace access::screens {
             return false;
         }
 
+        const char* const GALAXY_SYSTEM_STOP = "galaxy/system";
+        const char* const GALAXY_FLEET_STOP = "galaxy/fleet";
+
+        int16_t Open_System_() {
+            if (!MOVEBOX::Moveable_Box_Selected(0)) {
+                return -1;
+            }
+            int16_t system = MOX::moveable_box[0].id;
+            return system >= 0 && system < MOX::NUM_STARS ? system : -1;
+        }
+
+        int16_t Open_Fleet_Stack_() {
+            if (!MOVEBOX::Moveable_Box_Selected(2)) {
+                return -1;
+            }
+            int16_t stack = MOX::fleet_box_ship_stack;
+            return stack >= 0 && stack < MOX::ship_stack_count ? stack : -1;
+        }
+
+        std::string Fleet_Box_Label_(int16_t stack) {
+            int16_t star_idx = SHIPSTAK::Ship_Stack_Star_Id(MOX::ship_stack_start[stack]);
+            return star_idx >= 0 && star_idx < MOX::NUM_STARS
+                ? vocab::Format(vocab::VOCAB_FLEET_DISPLAY_AT, Star_Label_(star_idx))
+                : std::string(vocab::Get(vocab::VOCAB_FLEET_DISPLAY));
+        }
+
         void Galaxy_Build_(graph::GraphBuilder* builder, s_build_context* context) {
             int16_t capital = Capital_Star_();
 
@@ -815,12 +846,29 @@ namespace access::screens {
                 }
                 other.push_back(i);
             }
+            // The system display and the fleet box replace each other, so at most one is open. Keys
+            // carry the system or stack, so a different one starts at its first control.
             if (!other.empty()) {
-                builder->BeginStop("galaxy/other");
-                builder->PushContext(vocab::Get(vocab::VOCAB_GALAXY_OTHER));
+                int16_t system = Open_System_();
+                int16_t fleet_stack = Open_Fleet_Stack_();
+                const char* stop = "galaxy/other";
+                std::string label = vocab::Get(vocab::VOCAB_GALAXY_OTHER);
+                int16_t owner_id = -1;
+                if (system >= 0) {
+                    stop = GALAXY_SYSTEM_STOP;
+                    label = vocab::Format(vocab::VOCAB_SYSTEM_DISPLAY, Star_Label_(system));
+                    owner_id = system;
+                } else if (fleet_stack >= 0) {
+                    stop = GALAXY_FLEET_STOP;
+                    label = Fleet_Box_Label_(fleet_stack);
+                    owner_id = fleet_stack;
+                }
+                builder->BeginStop(stop);
+                builder->PushContext(label);
                 for (int16_t i : other) {
-                    char key[48];
-                    snprintf(key, sizeof(key), "galaxy/other/%d/%d,%d", (int)i, (int)fields::fields[i].x, (int)fields::fields[i].y);
+                    char key[64];
+                    snprintf(key, sizeof(key), "%s/%d/%d/%d,%d", stop, (int)owner_id, (int)i,
+                        (int)fields::fields[i].x, (int)fields::fields[i].y);
                     Add_Field_Item_(builder, context, key, i, Field_Label_(i));
                 }
                 builder->PopContext();
@@ -833,43 +881,52 @@ namespace access::screens {
             }
         }
 
-        // The system display and fleet box open inside the main loop without moving focus, so a
-        // change of either is spoken here; a sighted player sees the box appear.
+        // The system display and fleet box open inside the main loop without moving focus, so the
+        // poll asks for focus in them and the differ announces the landing (spec 7.3).
         int16_t polled_system = -1;
         int16_t polled_fleet_stack = -1;
+        // A star pressed through its node: its system display takes focus even when it was
+        // already open on that star, so Enter is never silent.
+        int16_t awaited_star = -1;
+        int32_t awaited_star_ticks = 0;
+
+        void Await_Star_(int16_t star_idx) {
+            awaited_star = star_idx;
+            awaited_star_ticks = 0;
+        }
 
         void Galaxy_Poll_(bool just_attached) {
             if (just_attached) {
-                polled_system = -1;
-                polled_fleet_stack = -1;
+                // Arriving on the screen lands on the capital; an already open box stays put.
+                polled_system = Open_System_();
+                polled_fleet_stack = Open_Fleet_Stack_();
                 pending_star = -1;
+                awaited_star = -1;
+                return;
+            }
+
+            if (awaited_star >= 0) {
+                ++awaited_star_ticks;
             }
             Poll_Pending_Star_();
 
-            int16_t system = MOVEBOX::Moveable_Box_Selected(0) ? MOX::moveable_box[0].id : -1;
-            if (system < 0 || system >= MOX::NUM_STARS) {
-                system = -1;
+            int16_t system = Open_System_();
+            int16_t fleet_stack = Open_Fleet_Stack_();
+            bool awaited_landed = awaited_star >= 0 && awaited_star_ticks >= 1 && system == awaited_star;
+
+            if (system >= 0 && (system != polled_system || awaited_landed)) {
+                navigator::Request_Focus_Stop(GALAXY_SYSTEM_STOP);
+                awaited_star = -1;
+            } else if (fleet_stack >= 0 && fleet_stack != polled_fleet_stack) {
+                navigator::Request_Focus_Stop(GALAXY_FLEET_STOP);
+                awaited_star = -1;
             }
-            if (system != polled_system) {
-                polled_system = system;
-                if (system >= 0) {
-                    speech::Say(vocab::Format(vocab::VOCAB_SYSTEM_DISPLAY, Star_Label_(system)), false);
-                }
+            if (awaited_star >= 0 && awaited_star_ticks >= PENDING_STAR_MAX_TICKS) {
+                awaited_star = -1;
             }
 
-            int16_t fleet_stack = MOVEBOX::Moveable_Box_Selected(2) ? MOX::fleet_box_ship_stack : -1;
-            if (fleet_stack < 0 || fleet_stack >= MOX::ship_stack_count) {
-                fleet_stack = -1;
-            }
-            if (fleet_stack != polled_fleet_stack) {
-                polled_fleet_stack = fleet_stack;
-                if (fleet_stack >= 0) {
-                    int16_t star_idx = SHIPSTAK::Ship_Stack_Star_Id(MOX::ship_stack_start[fleet_stack]);
-                    speech::Say(star_idx >= 0 && star_idx < MOX::NUM_STARS
-                        ? vocab::Format(vocab::VOCAB_FLEET_DISPLAY_AT, Star_Label_(star_idx))
-                        : std::string(vocab::Get(vocab::VOCAB_FLEET_DISPLAY)), false);
-                }
-            }
+            polled_system = system;
+            polled_fleet_stack = fleet_stack;
         }
 
         const s_screen_recipe recipes[] = {

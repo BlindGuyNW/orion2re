@@ -29,4 +29,9 @@ namespace access::navigator {
     void Request_Field_Activation(int16_t field_idx);
     bool Take_Field_Activation(int16_t* field_idx);
 
+    // Game thread. Deferred programmatic focus (spec 7.3): on the differ's next pass, focus lands
+    // in the Tab-stop and the differ announces it. A stop not built yet is retried for a short
+    // while, because a popup can add its fields a frame after it opens.
+    void Request_Focus_Stop(const char* stop_key);
+
 } // namespace access::navigator

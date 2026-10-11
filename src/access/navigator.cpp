@@ -63,6 +63,10 @@ namespace access::navigator {
         // list before the next poll must not have a different control pressed in its place.
         int16_t pending_activation = 0;
         s_field pending_activation_field;
+        // A Tab-stop a recipe asked focus to move into, and how many differ passes it has waited.
+        std::string pending_focus_stop;
+        int32_t pending_focus_passes = 0;
+        constexpr int32_t PENDING_FOCUS_MAX_PASSES = 30;
         // Toggles change state inside Get_Input after the tick, so their feedback waits a tick.
         bool pending_state_feedback = false;
 
@@ -117,6 +121,7 @@ namespace access::navigator {
             key_graph.reset();
             spoken = graph::ControlId();
             pending_state_feedback = false;
+            pending_focus_stop.clear();
         }
 
         // Re-derives the active recipe from live state every tick (spec section 9).
@@ -474,13 +479,24 @@ namespace access::navigator {
             }
         }
 
-        if (is_enabled && key_graph != nullptr && (handled_key || now - last_rebuild_ms >= IDLE_REBUILD_MS)) {
+        if (is_enabled && key_graph != nullptr &&
+            (handled_key || !pending_focus_stop.empty() || now - last_rebuild_ms >= IDLE_REBUILD_MS)) {
             last_rebuild_ms = now;
 
             // The differ (spec 7.3): one place announces every focus change no keypress already spoke.
             Guarded_("differ", [&]() {
                 if (!key_graph->Rerender()) {
                     return;
+                }
+                if (!pending_focus_stop.empty()) {
+                    // A copy: Focus rebuilds the render, which frees the node the landing came from.
+                    graph::GraphNode* landing = key_graph->StopLanding(pending_focus_stop);
+                    graph::ControlId landing_id = landing != nullptr ? landing->Id : graph::ControlId();
+                    if (landing != nullptr && key_graph->Focus(landing_id)) {
+                        pending_focus_stop.clear();
+                    } else if (++pending_focus_passes >= PENDING_FOCUS_MAX_PASSES) {
+                        pending_focus_stop.clear();
+                    }
                 }
                 graph::GraphNode* node = key_graph->CurrentNode();
                 if (node == nullptr || node->Id == spoken) {
@@ -504,6 +520,11 @@ namespace access::navigator {
         }
         pending_activation = field_idx;
         pending_activation_field = fields::fields[field_idx];
+    }
+
+    void Request_Focus_Stop(const char* stop_key) {
+        pending_focus_stop = stop_key != nullptr ? stop_key : "";
+        pending_focus_passes = 0;
     }
 
     bool Take_Field_Activation(int16_t* field_idx) {
