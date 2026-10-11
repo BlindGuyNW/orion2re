@@ -803,6 +803,319 @@ namespace access::screens {
                 : std::string(vocab::Get(vocab::VOCAB_FLEET_DISPLAY));
         }
 
+        // ---- System display ----------------------------------------------------------------------
+
+        // The game keeps a few H_Message strings as printf formats; it formats them the same way.
+        std::string H_Text_(int16_t message_id) {
+            return text::Normalize_Game_Text(HAROLD::H_Message(message_id));
+        }
+
+        std::string Star_Name_(int16_t star_idx) {
+            char name[sizeof(MOX::star[star_idx].name) + 1] = {};
+            memcpy(name, MOX::star[star_idx].name, sizeof(MOX::star[star_idx].name));
+            return text::Normalize_Game_Text(name);
+        }
+
+        std::string Race_Name_(int16_t player_idx) {
+            char race[sizeof(MOX::player[player_idx].race_name) + 1] = {};
+            memcpy(race, MOX::player[player_idx].race_name, sizeof(MOX::player[player_idx].race_name));
+            return race;
+        }
+
+        // The lines SYS::Do_Print_Planet_Info draws when the pointer is over a planet, which can't
+        // be called here because it draws as it formats. The first line is the planet's name.
+        std::vector<std::string> Planet_Info_Lines_(int16_t planet_idx) {
+            std::vector<std::string> lines;
+            const s_planet_data* planet = &MOX::planet[planet_idx];
+            char line[200];
+
+            if (planet->planet_type == PLANET_TYPE_GAS_GIANT) {
+                lines.push_back(H_Text_(0x15f));
+                return lines;
+            }
+            if (planet->planet_type == PLANET_TYPE_ASTEROID) {
+                lines.push_back(H_Text_(0x160));
+                return lines;
+            }
+
+            const s_colony* colony = planet->colony_index > -1 ? &MOX::colony[planet->colony_index] : nullptr;
+            uint8_t climate = (uint8_t)(colony != nullptr ? colony->climate : planet->climate);
+
+            char name[64] = {};
+            HACCESS::Do_Get_Planet_Name(planet_idx, name, 0);
+            std::string title = name;
+            if (colony != nullptr) {
+                title += " (" + Race_Name_((int8_t)colony->owner);
+                title += colony->outpost_flag != 0 ? std::string(HAROLD::H_Message(0x161)) : std::string(")");
+            }
+            lines.push_back(text::Normalize_Game_Text(title.c_str()));
+
+            snprintf(line, sizeof(line), "%s, %s", MOX::planet_size_string[(int8_t)planet->size], MOX::planet_climate_string[climate]);
+            lines.push_back(text::Normalize_Game_Text(line));
+
+            int16_t max_population = COLCALC::Planet_Max_Population_For_Player(const_cast<s_planet_data*>(planet), MOX::PLAYER_NUM);
+            if (colony != nullptr) {
+                snprintf(line, sizeof(line), HAROLD::H_Message(0x181), (uint32_t)(uint8_t)colony->n_pops, (int32_t)max_population);
+            } else {
+                snprintf(line, sizeof(line), HAROLD::H_Message(0x162), (int32_t)max_population);
+            }
+            lines.push_back(text::Normalize_Game_Text(line));
+
+            if ((int8_t)planet->gravity_class == PLANET_GRAVITY_NORMAL_G) {
+                snprintf(line, sizeof(line), "%s", MOX::mineral_class_string[(int8_t)planet->mineral_class]);
+            } else {
+                snprintf(line, sizeof(line), "%s, %s", MOX::mineral_class_string[(int8_t)planet->mineral_class],
+                    MOX::planet_gravity_string[(int8_t)planet->gravity_class]);
+            }
+            lines.push_back(text::Normalize_Game_Text(line));
+
+            // Mirrors SYS::Print_Special_Building_Data and the visibility rule that gates it.
+            bool can_show_buildings = MOX::player_has_ship_in_system != 0 ||
+                HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, planet->star_index) ||
+                MOX::player[MOX::PLAYER_NUM].traits[TRAIT_OMNISCIENCE] != 0;
+            if (colony != nullptr && can_show_buildings) {
+                const int16_t buildings[] = {
+                    BUILDING_STAR_FORTRESS, BUILDING_STAR_BASE, BUILDING_BATTLESTATION, BUILDING_MISSILE_BASE,
+                    BUILDING_GROUND_BATTERIES, BUILDING_STELLAR_CONVERTER, BUILDING_FIGHTER_GARRISON,
+                };
+                for (int16_t building : buildings) {
+                    if (colony->buildings[building] != 0) {
+                        lines.push_back(text::Normalize_Game_Text(TECHDATA::buildings[building].name));
+                    }
+                }
+            }
+
+            int32_t special = (int8_t)planet->planet_special;
+            if (special != 0 && special != 0xb) {
+                lines.push_back(text::Normalize_Game_Text(MOX::planet_special_string[special]));
+            }
+            return lines;
+        }
+
+        // The lines SYS::Do_Print_System_Ship_Data draws for a fleet icon in the system display.
+        std::vector<std::string> System_Fleet_Lines_(int16_t ship_node_num) {
+            std::vector<std::string> lines;
+            char line[200];
+
+            int16_t node = ship_node_num >= SHIP_NODE_UI_TAG_BASE ? (int16_t)(ship_node_num - SHIP_NODE_UI_TAG_BASE) : ship_node_num;
+            int16_t ship_idx = MOX::ship_node[node].ship_idx;
+            int16_t owner = HACCESS::Ship_Owner(ship_idx);
+            if (ship_node_num >= SHIP_NODE_UI_TAG_BASE || owner >= MAX_PLAYERS) {
+                char name[sizeof(MOX::ship[ship_idx].d.name) + 1] = {};
+                memcpy(name, MOX::ship[ship_idx].d.name, sizeof(MOX::ship[ship_idx].d.name));
+                lines.push_back(text::Normalize_Game_Text(name));
+                return lines;
+            }
+
+            int16_t total = 0;
+            int16_t colony_ships = 0;
+            int16_t outposts = 0;
+            int16_t transports = 0;
+            int16_t hulls[SHIP_SIZE_DOOM_STAR + 1];
+            SYS::N_Ships_By_Type_In_Stack(ship_node_num, &total, &colony_ships, &outposts, &transports, hulls);
+
+            snprintf(line, sizeof(line), HAROLD::H_Message(0x163), Race_Name_(owner).c_str());
+            lines.push_back(text::Normalize_Game_Text(line));
+            for (int16_t hull = 0; hull <= SHIP_SIZE_DOOM_STAR; ++hull) {
+                if (hulls[hull] > 0) {
+                    const char* hull_name = hulls[hull] == 1 ? TECHDATA::hull_data[hull].name : TECHDATA::hull_data[hull].size_name;
+                    snprintf(line, sizeof(line), "%d %s", (int32_t)hulls[hull], hull_name);
+                    lines.push_back(text::Normalize_Game_Text(line));
+                }
+            }
+            const int16_t counts[] = { colony_ships, outposts, transports };
+            const int16_t one_messages[] = { 0x164, 0x166, 0x168 };
+            for (int32_t i = 0; i < 3; ++i) {
+                if (counts[i] > 0) {
+                    snprintf(line, sizeof(line), HAROLD::H_Message(counts[i] == 1 ? one_messages[i] : (int16_t)(one_messages[i] + 1)),
+                        (int32_t)counts[i]);
+                    lines.push_back(text::Normalize_Game_Text(line));
+                }
+            }
+            return lines;
+        }
+
+        // SYS::Print_Gate_Info: gate_slot 0 is a dimensional portal, 3 an Artemis net, each naming
+        // the races that own one here.
+        std::string Gate_Text_(int16_t star_idx, int16_t gate_slot) {
+            std::string text = H_Text_(gate_slot == 0 ? 0x17C : 0x17B);
+            std::string owners;
+            for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
+                bool owns = gate_slot == 0
+                    ? HAROLD::Player_Has_Dimensional_Portal(&MOX::player[i], &MOX::star[star_idx])
+                    : HAROLD::Player_Has_Artemis_Net(&MOX::player[i], &MOX::star[star_idx]);
+                if (owns) {
+                    owners += (owners.empty() ? "" : ", ") + Race_Name_(i);
+                }
+            }
+            return text::Normalize_Spoken_Text(text + owners + ")");
+        }
+
+        // The wormhole line SYS::Draw_System_Display_Popup prints along the bottom of the display.
+        std::string Wormhole_Text_(int16_t star_idx) {
+            int16_t other = MOX::star[star_idx].wormhole_star_id;
+            if (other < 0 || other >= MOX::NUM_STARS) {
+                return std::string();
+            }
+            if (!HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, other)) {
+                return H_Text_(0x16d);
+            }
+            char line[200];
+            snprintf(line, sizeof(line), HAROLD::H_Message(0x16c), Star_Name_(other).c_str());
+            return text::Normalize_Game_Text(line);
+        }
+
+        // An asteroid belt has no field of its own: the main loop hit-tests the pointer against
+        // the orbits when the display's grid is pressed (MAINSCR::Scan_System_Display_Fields).
+        bool Asteroid_Point_(int32_t orbit, int16_t* out_x, int16_t* out_y) {
+            int16_t grid_idx = MOX::system_display_grid_field;
+            if (!Is_Valid_Field_(grid_idx)) {
+                return false;
+            }
+            const s_field* grid = &fields::fields[grid_idx];
+            int16_t cx = (int16_t)(MOX::system_display_base_x + 171);
+            int16_t cy = (int16_t)(MOX::system_display_base_y + 134);
+            for (int16_t step = 1; step < 200; ++step) {
+                const int16_t candidates[2] = { (int16_t)(cx - step), (int16_t)(cx + step) };
+                for (int16_t x : candidates) {
+                    if (x < grid->x || x > grid->x_end || cy < grid->y || cy > grid->y_end) {
+                        continue;
+                    }
+                    if (GEO::Get_Orbit_From_X_Y(cx - x, 0) == orbit) {
+                        *out_x = x;
+                        *out_y = cy;
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        graph::NodeVtable Info_Vtable_(const std::vector<std::string>& lines) {
+            graph::NodeVtable vtable;
+            for (size_t i = 0; i < lines.size(); ++i) {
+                vtable.Announcements.push_back(graph::NodeAnnouncement::Static(lines[i]));
+                vtable.Announcements.back().Kind = i == 0 ? Label : Value;
+            }
+            return vtable;
+        }
+
+        // Pressing a field the game reads as a click: a planet opens its colony screen when it is
+        // the player's, a fleet opens its fleet box.
+        void Add_System_Field_Node_(graph::GraphBuilder* builder, s_build_context* context, const std::string& key,
+            int16_t field_idx, const std::vector<std::string>& lines, const graph::ControlType* type) {
+            graph::NodeVtable vtable = Info_Vtable_(lines);
+            vtable.Type = type;
+            vtable.OnActivate = [field_idx]() { navigator::Request_Field_Activation(field_idx); };
+            vtable.OnTooltip = [field_idx]() { Speak_Field_Help_(field_idx); };
+            context->node_fields[key] = field_idx;
+            builder->AddItem(graph::ControlId::Structural(key), vtable);
+        }
+
+        void Add_System_Text_Node_(graph::GraphBuilder* builder, const std::string& key, const std::string& text) {
+            builder->AddItem(graph::ControlId::Structural(key), Info_Vtable_(std::vector<std::string>{ text }));
+        }
+
+        // The display's own fields, which the system stop lists in its own order; everything else
+        // in the box (title bar, background, orbit grid) is a drag or click target with no meaning.
+        bool Is_System_Field_(int16_t field_idx) {
+            const s_movable_box* box = &MOX::moveable_box[0];
+            if (field_idx == box->close_btn || field_idx == box->drag_field || field_idx == box->window_field_id ||
+                field_idx == MOX::system_display_grid_field) {
+                return true;
+            }
+            for (int16_t i = 0; i < 5; ++i) {
+                if (field_idx == MOX::planet_buttons[i]) {
+                    return true;
+                }
+            }
+            for (int16_t i = 0; i < 15; ++i) {
+                if (MOX::system_display_ships[i].ship_idx > -1 && field_idx == MOX::system_display_ships[i].button) {
+                    return true;
+                }
+            }
+            for (int16_t i = 0; i < 4; ++i) {
+                if (field_idx == MOX::gate_icon_field[i]) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        void Build_System_Stop_(graph::GraphBuilder* builder, s_build_context* context, const char* stop, int16_t star_idx) {
+            char prefix[48];
+            snprintf(prefix, sizeof(prefix), "%s/%d", stop, (int)star_idx);
+            std::string base = prefix;
+
+            if (MOX::look_at_colonies == 0 && !SYS::Ok_To_View_System(star_idx, MOX::PLAYER_NUM)) {
+                if (!HAROLD::Player_Sighted_Monster(MOX::PLAYER_NUM, star_idx) && SYS::star_description_string[0] != '\0') {
+                    Add_System_Text_Node_(builder, base + "/description", text::Normalize_Game_Text(SYS::star_description_string));
+                }
+            } else {
+                // Planets inner orbit first; the display stores them sorted by drawing depth.
+                std::vector<int16_t> slots;
+                for (int16_t slot = 0; slot < 5; ++slot) {
+                    if (MOX::sys_disp != nullptr && MOX::sys_disp[slot].orbit > -1) {
+                        slots.push_back(slot);
+                    }
+                }
+                std::stable_sort(slots.begin(), slots.end(), [](int16_t a, int16_t b) {
+                    return MOX::planet[MOX::sys_disp[a].orbit].orbit < MOX::planet[MOX::sys_disp[b].orbit].orbit;
+                });
+                for (int16_t slot : slots) {
+                    int16_t planet_idx = MOX::sys_disp[slot].orbit;
+                    std::string key = base + "/planet/" + std::to_string(planet_idx);
+                    std::vector<std::string> lines = Planet_Info_Lines_(planet_idx);
+                    if (MOX::planet[planet_idx].planet_type == PLANET_TYPE_ASTEROID) {
+                        int16_t x = 0;
+                        int16_t y = 0;
+                        if (Asteroid_Point_(MOX::planet[planet_idx].orbit, &x, &y)) {
+                            context->node_points[key] = s_pointer_target{ x, y };
+                            Add_System_Field_Node_(builder, context, key, MOX::system_display_grid_field, lines, nullptr);
+                            continue;
+                        }
+                        builder->AddItem(graph::ControlId::Structural(key), Info_Vtable_(lines));
+                    } else if (Is_Valid_Field_(MOX::planet_buttons[slot])) {
+                        Add_System_Field_Node_(builder, context, key, MOX::planet_buttons[slot], lines, nullptr);
+                    } else {
+                        builder->AddItem(graph::ControlId::Structural(key), Info_Vtable_(lines));
+                    }
+                }
+
+                // Build_System_Popup_Ships fills one slot per owner from the detection-filtered icons.
+                for (int16_t slot = 0; slot < 15; ++slot) {
+                    const s_system_display_ships* ships = &MOX::system_display_ships[slot];
+                    if (ships->ship_idx <= -1 || ships->pic == nullptr || !Is_Valid_Field_(ships->button)) {
+                        continue;
+                    }
+                    Add_System_Field_Node_(builder, context, base + "/fleet/" + std::to_string(slot), ships->button,
+                        System_Fleet_Lines_(ships->ship_idx), &button_type);
+                }
+
+                const int16_t gate_slots[] = { 3, 0 };
+                for (int16_t gate_slot : gate_slots) {
+                    int16_t field_idx = MOX::gate_icon_field[gate_slot];
+                    if (!Is_Valid_Field_(field_idx)) {
+                        continue;
+                    }
+                    std::string key = base + "/gate/" + std::to_string(gate_slot);
+                    graph::NodeVtable vtable = Info_Vtable_(std::vector<std::string>{ Gate_Text_(star_idx, gate_slot) });
+                    context->node_fields[key] = field_idx;
+                    builder->AddItem(graph::ControlId::Structural(key), vtable);
+                }
+
+                std::string wormhole = Wormhole_Text_(star_idx);
+                if (!wormhole.empty()) {
+                    Add_System_Text_Node_(builder, base + "/wormhole", wormhole);
+                }
+            }
+
+            int16_t close = MOX::moveable_box[0].close_btn;
+            if (Is_Valid_Field_(close)) {
+                Add_Field_Item_(builder, context, base + "/close", close, vocab::Get(vocab::VOCAB_CLOSE));
+            }
+        }
+
         void Galaxy_Build_(graph::GraphBuilder* builder, s_build_context* context) {
             int16_t capital = Capital_Star_();
 
@@ -836,29 +1149,32 @@ namespace access::screens {
             }
             builder->PopContext();
 
-            // Popups such as the system display add their fields to this loop's list.
+            // The system display and the fleet box replace each other, so at most one is open. Keys
+            // carry the system or stack, so a different one starts at its first control.
+            int16_t system = Open_System_();
+            if (system >= 0) {
+                builder->BeginStop(GALAXY_SYSTEM_STOP);
+                builder->PushContext(vocab::Format(vocab::VOCAB_SYSTEM_DISPLAY, Star_Label_(system)));
+                Build_System_Stop_(builder, context, GALAXY_SYSTEM_STOP, system);
+                builder->PopContext();
+            }
+
+            // Popups such as the fleet box add their fields to this loop's list.
             std::vector<int16_t> other;
             for (int16_t i = 1; i < fields::fields_count; ++i) {
                 const s_field* field = &fields::fields[i];
                 if (i == MOX::main_screen_grid_field || Is_Galaxy_Panel_Field_(i) || field->field_type == FIELD_TYPE_CIRCLE ||
-                    Is_Catch_All_(field) || !Field_Is_Listed_(i, true)) {
+                    Is_Catch_All_(field) || !Field_Is_Listed_(i, true) || (system >= 0 && Is_System_Field_(i))) {
                     continue;
                 }
                 other.push_back(i);
             }
-            // The system display and the fleet box replace each other, so at most one is open. Keys
-            // carry the system or stack, so a different one starts at its first control.
             if (!other.empty()) {
-                int16_t system = Open_System_();
                 int16_t fleet_stack = Open_Fleet_Stack_();
                 const char* stop = "galaxy/other";
                 std::string label = vocab::Get(vocab::VOCAB_GALAXY_OTHER);
                 int16_t owner_id = -1;
-                if (system >= 0) {
-                    stop = GALAXY_SYSTEM_STOP;
-                    label = vocab::Format(vocab::VOCAB_SYSTEM_DISPLAY, Star_Label_(system));
-                    owner_id = system;
-                } else if (fleet_stack >= 0) {
+                if (fleet_stack >= 0) {
                     stop = GALAXY_FLEET_STOP;
                     label = Fleet_Box_Label_(fleet_stack);
                     owner_id = fleet_stack;
