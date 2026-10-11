@@ -1534,14 +1534,15 @@ namespace access::screens {
             return 0;
         }
 
-        // One node per line of the message, so a long message can be read a paragraph at a time.
+        // One node per line or paragraph break of the message, so a long message can be read a
+        // paragraph at a time.
         void Text_Box_Build_(graph::GraphBuilder* builder, s_build_context*) {
             int16_t dismiss = Text_Box_Dismiss_Field_();
             std::string raw = TEXTBOX::shown_text;
             size_t start = 0;
             int32_t line_number = 0;
             while (start <= raw.size()) {
-                size_t end = raw.find('\n', start);
+                size_t end = raw.find_first_of("\r\n", start);
                 if (end == std::string::npos) {
                     end = raw.size();
                 }
@@ -1559,8 +1560,108 @@ namespace access::screens {
             }
         }
 
+        // ---- Research selection ------------------------------------------------------------------
+
+        // TECH::_Tech_Select publishes its eight areas while it waits for input; _Tech_List, the
+        // browse list for one area, opens over it without removing its fields.
+        bool Research_Is_Active_() {
+            return TECH::shown_entries != nullptr && TECH::shown_list_entry == nullptr &&
+                Is_Valid_Field_(TECH::g_first_tech_field) && Is_Valid_Field_(TECH::g_last_tech_field);
+        }
+
+        std::string Research_Instance_Key_() {
+            return TECH::shown_accept_field > 0 ? "research/change" : "research/select";
+        }
+
+        std::string Research_Name_() {
+            return vocab::Get(TECH::shown_accept_field > 0 ? vocab::VOCAB_SCREEN_TECH_CHANGE : vocab::VOCAB_SCREEN_RESEARCH);
+        }
+
+        // TECH::Display_Entry_Text highlights the current field's chosen technology, or all of
+        // its technologies for a creative race and the fields that research as a whole.
+        bool Research_App_Is_Current_(const s_list_item_research* entry, int16_t app) {
+            const s_player* player = MOX::cur_plyr_ptr;
+            if (player == nullptr || (uint8_t)player->current_research_field != entry->tech_field_id) {
+                return false;
+            }
+            int16_t field = entry->tech_field_id;
+            if (player->traits[TRAIT_CREATIVE] == 1 || field == 0x37 || field == 0x39 || field == 0x1D || field == 0x16 ||
+                field == 0x1C || field == 0x17) {
+                return true;
+            }
+            uint8_t current = (uint8_t)player->current_research_application;
+            return strcasecmp(entry->app_names[app], TECHDATA::technology_applications[current].name) == 0;
+        }
+
+        // The game picks the technology from the field under the pointer (Draw_Tech_Select), and
+        // the press then commits whatever is picked. Picking it here too keeps a press that lands
+        // before the next draw from committing the previous pick.
+        void Choose_Research_(int16_t field_idx) {
+            if (TECH::shown_entries != nullptr) {
+                TECH::Set_Selected_Entry(TECH::shown_entries, field_idx);
+            }
+            navigator::Request_Field_Activation(field_idx);
+        }
+
+        void Research_Build_(graph::GraphBuilder* builder, s_build_context* context) {
+            const s_list_item_research* entries = TECH::shown_entries;
+            std::string start;
+            for (int16_t i = 0; i < 8; ++i) {
+                const s_list_item_research* entry = &entries[i];
+                if (entry->tech_field_id == 0) {
+                    continue;
+                }
+                // The area's name is drawn as part of the picture; _Tech_List titles its list with
+                // the same name from billtext.lbx.
+                std::string area;
+                help::Read_Text_Message("billtext.lbx", (int16_t)(0x40 + entry->id), &area);
+                std::string heading = text::Normalize_Game_Text(entry->field_name);
+                std::string cost = text::Normalize_Game_Text(entry->buf);
+                if (!area.empty()) {
+                    heading = area + ", " + heading;
+                }
+                builder->PushContext(cost.empty() ? heading : heading + ", " + cost);
+
+                for (int16_t app = 0; app < entry->visible_app_count && app < 4; ++app) {
+                    int16_t field_idx = entry->app_click_field_ids[app];
+                    std::string key = "research/" + std::to_string(i) + "/" + std::to_string(app);
+                    graph::NodeVtable vtable = Info_Vtable_(std::vector<std::string>{ text::Normalize_Game_Text(entry->app_names[app]) });
+                    if (Research_App_Is_Current_(entry, app)) {
+                        vtable.Announcements.push_back(graph::NodeAnnouncement::Static(vocab::Get(vocab::VOCAB_STATE_CURRENT)));
+                        vtable.Announcements.back().Kind = Selected;
+                    }
+                    if (Is_Valid_Field_(field_idx)) {
+                        vtable.OnActivate = [field_idx]() { Choose_Research_(field_idx); };
+                        // A right click shows the technology's description.
+                        vtable.OnSecondary = [field_idx]() { navigator::Request_Field_Secondary(field_idx); };
+                        vtable.OnTooltip = [field_idx]() { Speak_Field_Help_(field_idx); };
+                        context->node_fields[key] = field_idx;
+                    }
+                    builder->AddItem(graph::ControlId::Structural(key), vtable);
+                    if (start.empty()) {
+                        start = key;
+                    }
+                }
+
+                if (TECH::allow_future_technology_browsing && Is_Valid_Field_(entry->button_field_id)) {
+                    std::string label = vocab::Format(vocab::VOCAB_RESEARCH_BROWSE, area.empty() ? heading : area);
+                    Add_Field_Item_(builder, context, "research/" + std::to_string(i) + "/browse", entry->button_field_id, label);
+                }
+                builder->PopContext();
+            }
+
+            if (Is_Valid_Field_(TECH::shown_accept_field)) {
+                Add_Field_Item_(builder, context, "research/accept", TECH::shown_accept_field,
+                    Help_Label_Or_(TECH::shown_accept_field, vocab::VOCAB_ACCEPT));
+            }
+            if (!start.empty()) {
+                builder->SetStart(graph::ControlId::Structural(start));
+            }
+        }
+
         const s_screen_recipe recipes[] = {
             { "text_box", Text_Box_Is_Active_, Text_Box_Instance_Key_, Text_Box_Build_, Text_Box_Name_ },
+            { "research", Research_Is_Active_, Research_Instance_Key_, Research_Build_, Research_Name_ },
             { "main_menu", Main_Menu_Is_Active_, Main_Menu_Instance_Key_, Main_Menu_Build_, Main_Menu_Name_ },
             { "new_game", New_Game_Is_Active_, New_Game_Instance_Key_, New_Game_Build_, New_Game_Name_ },
             { "galaxy", Galaxy_Is_Active_, Galaxy_Instance_Key_, Galaxy_Build_, Galaxy_Name_, Galaxy_Poll_ },

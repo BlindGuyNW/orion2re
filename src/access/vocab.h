@@ -31,6 +31,7 @@ namespace access::vocab {
         VOCAB_STATE_OFF,
         VOCAB_STATE_SELECTED,
         VOCAB_STATE_NOT_SELECTED,
+        VOCAB_STATE_CURRENT,
         VOCAB_STATE_UNAVAILABLE,
         VOCAB_VALUE,
 
@@ -94,9 +95,12 @@ namespace access::vocab {
         VOCAB_FLEET_DISPLAY,
         VOCAB_FLEET_DISPLAY_AT,
         VOCAB_CLOSE,
-        VOCAB_CLICK_ANYWHERE,
         VOCAB_MESSAGE,
         VOCAB_FLEET_ALL,
+        VOCAB_CLICK_ANYWHERE,
+        VOCAB_SCREEN_RESEARCH,
+        VOCAB_RESEARCH_BROWSE,
+        VOCAB_ACCEPT,
 
         VOCAB_COUNT
     };

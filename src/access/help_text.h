@@ -19,4 +19,8 @@ namespace access::help {
     // Records are cached per language because recipes rebuild several times per keypress.
     bool Read_Help_Text(int16_t help_id, s_help_text* help_text);
 
+    // Reads one of the per-language messages JIM::Get_Text_Message reads, without its frame
+    // updates, normalized for speech and cached.
+    bool Read_Text_Message(const char* lbx_name, int16_t message_index, std::string* text);
+
 } // namespace access::help

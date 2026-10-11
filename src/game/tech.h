@@ -72,6 +72,12 @@ namespace TECH {
     extern uint8_t g_changing_tech;
     extern s_list_item_research* g_selected_entry_p;
     extern s_list_item_research* g_entries_p;
+    // For the screen reader layer: the research areas while _Tech_Select waits for input, its
+    // Accept button when changing research (-1 otherwise), and the area whose full technology
+    // list _Tech_List is showing over it.
+    extern s_list_item_research* shown_entries;
+    extern int16_t shown_accept_field;
+    extern s_list_item_research* shown_list_entry;
     extern s_colors tech_color[5];
     extern s_list_state g_tech_list_header;
     extern s_fieldsav_data tech_field_save;

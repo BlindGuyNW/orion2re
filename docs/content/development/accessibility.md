@@ -2,7 +2,7 @@
 
 The `src/access/` layer makes screens usable with a screen reader. It builds a parallel navigation tree over live game state, speaks focus changes through Tolk, and activates controls through the game's own field handling. It follows the Graph A11y Kernel specification used by several other game accessibility mods.
 
-The layer is a prototype. The main menu, New Game, and galaxy screens and the game's message box have dedicated recipes; every other screen falls back to a generic view of the live field list.
+The layer is a prototype. The main menu, New Game, galaxy, and research screens and the game's message box have dedicated recipes; every other screen falls back to a generic view of the live field list.
 
 ## Running it
 
@@ -34,11 +34,12 @@ Escape and every other key keep their game meaning. Numeric keypad keys are neve
 
 ## Game integration
 
-The layer touches the game in four places:
+The layer touches the game in five places:
 
 - `platform.cpp` offers each key-down to `access::navigator::Offer_Key_Down()` on the platform thread before translation. A claimed key is queued for the game thread and never reaches the legacy keyboard ring. The claim check reads only atomics, so it never waits for the game thread.
 - `fields::Get_Input()` calls `access::navigator::Tick()` on every poll. A requested activation then runs through the same press path as a field hotkey, so radio and locked toggles, the pressed drawing, the auto function, and the field sound all behave as they would for a keyboard shortcut. A requested right-click follows `Interpret_Mouse_Input`'s order instead: a help box under the pointer opens first, then an enabled cancel returns -1, and otherwise the game reads the negated field index.
 - `TEXTBOX::Do_Text_Box()` publishes the title and text it is showing while it waits for input.
+- `TECH::_Tech_Select()` and its callers publish the research areas, Accept button, and open browse list.
 - `MOX2::thunk_main2()` initializes and shuts down the layer on the game thread.
 
 Keys are claimed only while a cursor is seated, no continuous text field is active, and the game thread has polled fields within the last 300 milliseconds. Text-entry loops, animations, and loads that do not poll fields therefore receive their keys normally.
@@ -62,3 +63,5 @@ The system display that opens over the map has no text in its fields: the game d
 The fleet box's stop reads the status line `FLEETPOP::Print_Fleet_Box_Info` draws, then each ship and whether it is selected, then its buttons labelled from the help list. The game selects a ship only while the left button is held over its icon: the main screen's draw calls `MAINSCR::Set_Painted_Fleet_Fields` for the icon under the pointer, so Enter on a ship makes that same call. A press would only show the ship's name. While ships are selected, a star also reads the ETA line the fleet box shows for the star under the pointer, and pressing a star orders the move.
 
 `TEXTBOX::Do_Text_Box` leaves the screen's fields in place under its own full-screen field, so it publishes the title and text it shows in `TEXTBOX::shown_title` and `shown_text` while it waits for input. The text box recipe matches first while those are set, and lists the message one line at a time. Enter on any line dismisses the box, as any click would.
+
+The research screen runs inside whatever loop asked for it, so `TECH::_Tech_Select` publishes its areas in `TECH::shown_entries` while it waits for input, its Accept button in `shown_accept_field`, and the area whose browse list `_Tech_List` has open over it in `shown_list_entry`. The recipe groups each area's technologies under a heading naming the area, the field, and its cost. The area names are drawn as pictures, so they are read from the same `billtext.lbx` messages `_Tech_List` titles its list with, through a reader that skips `JIM::Get_Text_Message`'s frame updates. The game picks a technology from the field under the pointer and the press commits the pick, so Enter also makes that pick with `TECH::Set_Selected_Entry`, in case the press lands before the next draw. Backspace shows a technology's description in the message box.

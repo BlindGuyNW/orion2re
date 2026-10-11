@@ -92,6 +92,9 @@ namespace TECH {
     s_list_item_research* g_selected_entry_p;
     char tech_group_names[10][20];
     s_list_item_research* g_entries_p;
+    s_list_item_research* shown_entries;
+    int16_t shown_accept_field = -1;
+    s_list_item_research* shown_list_entry;
     s_colors tech_color[5];
 
     s_list_state g_tech_list_header = {
@@ -128,6 +131,7 @@ namespace TECH {
         MOX::player[MOX::PLAYER_NUM].current_research_field = 0;
         MOX::player[MOX::PLAYER_NUM].research_breakthrough = 0;
         TECH::_Tech_Select(0);
+        shown_entries = nullptr;
         ERIC::Fast_Fade_Out();
         TECH::Reset_Screen();
     }
@@ -257,6 +261,8 @@ namespace TECH {
         fields::Add_Hidden_Field(0, 0, 0x27F, 0x1DF, "", 0);
 
         g_entries_p = entries;
+        shown_entries = entries;
+        shown_accept_field = accept_btn_id;
 
         player_race = MOX::player[MOX::PLAYER_NUM].race;
         snprintf(science_race_lbx_name, sizeof(science_race_lbx_name), "SR_R%x_SC.LBX", player_race);
@@ -401,7 +407,9 @@ namespace TECH {
                             clicked_entry->button_image);
                         video::Copy_Off_To_Back();
                         clicked_entry->button_value = 0;
+                        shown_list_entry = clicked_entry;
                         _Tech_List(clicked_entry, changing_tech);
+                        shown_list_entry = nullptr;
                         redraw = true;
                         break;
                     }
@@ -1147,6 +1155,7 @@ namespace TECH {
         video::Copy_Off_To_Back();
         int8_t previous_field = MOX::player[MOX::PLAYER_NUM].current_research_field;
         _Tech_Select(1);
+        shown_entries = nullptr;
         if (MOX::player[MOX::PLAYER_NUM].current_research_field != previous_field) {
             MOX::player[MOX::PLAYER_NUM].research_breakthrough = 0;
         }

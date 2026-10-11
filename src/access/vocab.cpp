@@ -29,6 +29,7 @@ namespace access::vocab {
             "off",
             "selected",
             "not selected",
+            "current",
             "unavailable",
             "value %1",
 
@@ -92,9 +93,12 @@ namespace access::vocab {
             "Fleet",
             "Fleet at %1",
             "Close",
-            "Click anywhere",
             "Message",
             "All ships",
+            "Click anywhere",
+            "Choose research",
+            "Browse %1",
+            "Accept",
         };
 
         static_assert(sizeof(english_strings) / sizeof(english_strings[0]) == VOCAB_COUNT, "one English string per vocabulary id");
