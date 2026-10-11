@@ -1916,27 +1916,10 @@ namespace MAINSCR {
         return -1;
     }
 
-    void __cdecl Check_Stars_XY(int16_t x, int16_t y, int8_t selected) {
+    int16_t __cdecl Find_Star_At_XY(int16_t x, int16_t y) {
         static const int32_t thresholds[3] = {12, 10, 8};
-        char local_name1[0x26] = "None";
-        char local_name2[0x26] = "None";
-        bool found = false;
-
-        (void)local_name1;
-        (void)local_name2;
-
-        MOX::mouse_XY.star_idx = -1;
-        MOX::mouse_XY.ship_icon_idx = -1;
-
-        if (MOX::NUM_STARS <= 0) {
-            return;
-        }
 
         for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
-            if (found) {
-                return;
-            }
-
             int16_t screen_x, screen_y;
             Get_Star_Draw_Coords(star_idx, &screen_x, &screen_y);
             HAROLD::Map_Scale_To_Zoom_Level();
@@ -1953,11 +1936,22 @@ namespace MAINSCR {
 
             int32_t threshold = Scaled_Star_Map_Dimension(static_cast<int16_t>(thresholds[(int32_t)star.size]));
             if (dist_sq <= threshold * threshold) {
-                MOX::mouse_XY.star_idx = star_idx;
-                MOX::mouse_XY.selected = selected;
-                ERICNET::Mox_Play_Sound(0x29);
-                found = true;
+                return star_idx;
             }
+        }
+
+        return -1;
+    }
+
+    void __cdecl Check_Stars_XY(int16_t x, int16_t y, int8_t selected) {
+        MOX::mouse_XY.star_idx = -1;
+        MOX::mouse_XY.ship_icon_idx = -1;
+
+        int16_t star_idx = Find_Star_At_XY(x, y);
+        if (star_idx > -1) {
+            MOX::mouse_XY.star_idx = star_idx;
+            MOX::mouse_XY.selected = selected;
+            ERICNET::Mox_Play_Sound(0x29);
         }
     }
 
@@ -1969,14 +1963,7 @@ namespace MAINSCR {
         EVANHELP::Set_Main_Screen_Help_List();
     }
 
-    void __cdecl Check_Ships_XY(int16_t mouse_x, int16_t mouse_y, int8_t selection_id) {
-        MOX::mouse_XY.star_idx = -1;
-        MOX::mouse_XY.ship_icon_idx = -1;
-
-        if (MOX::ship_icon_count <= 0) {
-            return;
-        }
-
+    int16_t __cdecl Find_Ship_Icon_At_XY(int16_t mouse_x, int16_t mouse_y) {
         for (int16_t i = 0; i < MOX::ship_icon_count; ++i) {
             s_ship_icon* icon = &MOX::ship_icon[i];
             int16_t ship_idx = MOX::ship_node[icon->node_idx].ship_idx;
@@ -1990,14 +1977,25 @@ namespace MAINSCR {
                     if (mouse_y >= icon->y) {
                         int16_t height = animate::Get_Height(anim);
                         if (mouse_y <= icon->y + height) {
-                            MOX::mouse_XY.ship_icon_idx = i;
-                            MOX::mouse_XY.selected = selection_id;
-                            ERICNET::Mox_Play_Sound(0x29);
-                            return;
+                            return i;
                         }
                     }
                 }
             }
+        }
+
+        return -1;
+    }
+
+    void __cdecl Check_Ships_XY(int16_t mouse_x, int16_t mouse_y, int8_t selection_id) {
+        MOX::mouse_XY.star_idx = -1;
+        MOX::mouse_XY.ship_icon_idx = -1;
+
+        int16_t icon_idx = Find_Ship_Icon_At_XY(mouse_x, mouse_y);
+        if (icon_idx > -1) {
+            MOX::mouse_XY.ship_icon_idx = icon_idx;
+            MOX::mouse_XY.selected = selection_id;
+            ERICNET::Mox_Play_Sound(0x29);
         }
     }
 

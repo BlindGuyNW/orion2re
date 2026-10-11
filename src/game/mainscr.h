@@ -235,7 +235,13 @@ namespace MAINSCR {
 
     void __cdecl Do_Colony_Screen(int16_t colony_idx, int16_t* status_flag);
 
+    /** Returns the first star whose hit radius contains the screen point, or -1. Changes no state. */
+    int16_t __cdecl Find_Star_At_XY(int16_t x, int16_t y);
+
     void __cdecl Check_Stars_XY(int16_t x, int16_t y, int8_t flag);
+
+    /** Returns the first ship icon whose last drawn rectangle contains the screen point, or -1. Changes no state. */
+    int16_t __cdecl Find_Ship_Icon_At_XY(int16_t mouse_x, int16_t mouse_y);
 
     void __cdecl Check_Ships_XY(int16_t mouse_x, int16_t mouse_y, int8_t selection_id);
 
