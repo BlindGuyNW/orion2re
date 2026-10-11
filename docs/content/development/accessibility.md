@@ -2,7 +2,7 @@
 
 The `src/access/` layer makes screens usable with a screen reader. It builds a parallel navigation tree over live game state, speaks focus changes through Tolk, and activates controls through the game's own field handling. It follows the Graph A11y Kernel specification used by several other game accessibility mods.
 
-The layer is a prototype. The main menu has a dedicated recipe; every other screen falls back to a generic view of the live field list.
+The layer is a prototype. The main menu and New Game screens have dedicated recipes; every other screen falls back to a generic view of the live field list.
 
 ## Running it
 
@@ -47,6 +47,6 @@ A recipe is an `s_screen_recipe`: an `Is_Active` predicate re-derived from live 
 
 The generic `fields` recipe lists every on-screen field in declaration order. It labels a field with the text the game draws on it, then the title of the help box containing its centre, then its hotkey. It omits keyboard-only hotkeys and lists a full-screen catch-all region only when the screen has no other control.
 
-Per-screen recipes should replace the generic one wherever a screen draws its values as text or pictures, because those values are not stored in the field list. The New Game screen is an example: each setting has two fields that share one help box, and the selected value is drawn separately.
+Per-screen recipes should replace the generic one wherever a screen draws its values as text or pictures, because those values are not stored in the field list. The New Game recipe is an example: each setting has two fields that share one help box, and the selected value is drawn separately, so the recipe reads the value from the string the screen draws.
 
 When the focused control changes, the pointer moves to the centre of its field so that the game's hover highlight follows the cursor.

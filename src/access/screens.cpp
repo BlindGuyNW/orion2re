@@ -293,6 +293,142 @@ namespace access::screens {
             return vocab::Get(vocab::VOCAB_SCREEN_MAIN_MENU);
         }
 
+        // ---- New Game --------------------------------------------------------------------------
+
+        // Each setting is a hidden field over its picture plus a click-thru field over its label
+        // strip; both cycle the same value forward, and the game draws the value's string itself.
+        struct s_new_game_setting {
+            int32_t field_slot;
+            const char* key;
+            char** strings;
+            int16_t* value;
+            int16_t count;
+        };
+
+        const s_new_game_setting new_game_settings[] = {
+            { 0, "new_game/difficulty", NEWGAME::diff_button_strings, &NEWGAME::diff_button_variable,
+                (int16_t)(sizeof(NEWGAME::diff_button_strings) / sizeof(NEWGAME::diff_button_strings[0])) },
+            { 1, "new_game/galaxy_size", NEWGAME::gal_size_button_strings, &NEWGAME::gal_size_button_variable,
+                (int16_t)(sizeof(NEWGAME::gal_size_button_strings) / sizeof(NEWGAME::gal_size_button_strings[0])) },
+            { 2, "new_game/galaxy_age", NEWGAME::gal_age_button_strings, &NEWGAME::gal_age_button_variable,
+                (int16_t)(sizeof(NEWGAME::gal_age_button_strings) / sizeof(NEWGAME::gal_age_button_strings[0])) },
+            { 3, "new_game/players", NEWGAME::opp_button_strings, &NEWGAME::opp_button_variable,
+                (int16_t)(sizeof(NEWGAME::opp_button_strings) / sizeof(NEWGAME::opp_button_strings[0])) },
+            { 5, "new_game/tech_level", NEWGAME::civ_button_strings, &NEWGAME::civ_button_variable,
+                (int16_t)(sizeof(NEWGAME::civ_button_strings) / sizeof(NEWGAME::civ_button_strings[0])) },
+        };
+
+        struct s_new_game_toggle {
+            int16_t* selection;
+            const char* key;
+        };
+
+        // In on-screen order, top to bottom.
+        const s_new_game_toggle new_game_toggles[] = {
+            { (int16_t*)&NEWGAME::combat_button_variable, "new_game/tactical_combat" },
+            { &NEWGAME::random_events_button_variable, "new_game/random_events" },
+            { &NEWGAME::xenon_attacks_button_variable, "new_game/antarans" },
+        };
+
+        constexpr int32_t NEW_GAME_CANCEL_SLOT = 6;
+        constexpr int32_t NEW_GAME_ACCEPT_SLOT = 8;
+        constexpr int16_t NEW_GAME_DIFFICULTY_X = 0x69;
+
+        // The New Game loop owns the field list only while its difficulty strip is where
+        // Update_Fields put it; race selection runs nested inside this loop with fields of its own.
+        bool New_Game_Is_Active_() {
+            if (MOX::current_screen != SCREEN_NEW_GAME) {
+                return false;
+            }
+            int16_t difficulty_field = NEWGAME::fields[0];
+            return Is_Valid_Field_(difficulty_field) &&
+                fields::fields[difficulty_field].field_type == FIELD_TYPE_HIDDEN &&
+                fields::fields[difficulty_field].x == NEWGAME::g_x + NEW_GAME_DIFFICULTY_X;
+        }
+
+        std::string New_Game_Instance_Key_() {
+            return "new_game";
+        }
+
+        std::string New_Game_Setting_Value_(const s_new_game_setting* setting) {
+            int16_t value = *setting->value;
+            if (value < 0 || value >= setting->count || !Is_Usable_String_(setting->strings[value])) {
+                return std::string();
+            }
+            return text::Normalize_Game_Text(setting->strings[value]);
+        }
+
+        // The tech level box's help title names one level ("Tech Level : Prewarp") whatever is
+        // selected, so only the part before the colon labels the setting.
+        std::string New_Game_Setting_Label_(int16_t field_idx) {
+            std::string label = Field_Label_(field_idx);
+            size_t colon = label.find(':');
+            if (colon != std::string::npos && colon > 0) {
+                label = text::Normalize_Spoken_Text(label.substr(0, colon));
+            }
+            return label;
+        }
+
+        int16_t Find_Radio_Field_(const int16_t* selection) {
+            for (int16_t i = 1; i < fields::fields_count; ++i) {
+                const s_field* field = &fields::fields[i];
+                if (field->field_type == FIELD_TYPE_RADIO && fields::Field_Data_Radio(field)->selection == selection) {
+                    return i;
+                }
+            }
+            return 0;
+        }
+
+        // Help titles come first here: Update_Fields gives every button and toggle the same
+        // E_Strings(0x0C) text, which cannot tell them apart.
+        std::string New_Game_Label_(int16_t field_idx) {
+            std::string label = Help_Title_(Field_Help_Id_(&fields::fields[field_idx]));
+            return label.empty() ? Field_Label_(field_idx) : label;
+        }
+
+        void New_Game_Build_(graph::GraphBuilder* builder, s_build_context* context) {
+            for (int32_t i = 0; i < (int32_t)(sizeof(new_game_settings) / sizeof(new_game_settings[0])); ++i) {
+                const s_new_game_setting* setting = &new_game_settings[i];
+                int16_t field_idx = NEWGAME::fields[setting->field_slot];
+                if (!Is_Valid_Field_(field_idx)) {
+                    continue;
+                }
+
+                graph::NodeVtable vtable;
+                vtable.Type = &choice_type;
+                vtable.Announcements.push_back(graph::NodeAnnouncement::Static(New_Game_Setting_Label_(field_idx)));
+                vtable.Announcements.back().Kind = Label;
+                vtable.Announcements.push_back(graph::NodeAnnouncement([setting]() { return New_Game_Setting_Value_(setting); }, true, Value));
+                vtable.OnActivate = [field_idx]() { navigator::Request_Field_Activation(field_idx); };
+                vtable.OnTooltip = [field_idx]() { Speak_Field_Help_(field_idx); };
+
+                context->node_fields[setting->key] = field_idx;
+                builder->AddItem(graph::ControlId::Structural(setting->key), vtable);
+            }
+
+            for (int32_t i = 0; i < (int32_t)(sizeof(new_game_toggles) / sizeof(new_game_toggles[0])); ++i) {
+                int16_t field_idx = Find_Radio_Field_(new_game_toggles[i].selection);
+                if (Is_Valid_Field_(field_idx)) {
+                    Add_Field_Item_(builder, context, new_game_toggles[i].key, field_idx, New_Game_Label_(field_idx));
+                }
+            }
+
+            int16_t cancel_field = NEWGAME::fields[NEW_GAME_CANCEL_SLOT];
+            if (Is_Valid_Field_(cancel_field)) {
+                Add_Field_Item_(builder, context, "new_game/cancel", cancel_field, New_Game_Label_(cancel_field));
+            }
+            int16_t accept_field = NEWGAME::fields[NEW_GAME_ACCEPT_SLOT];
+            if (Is_Valid_Field_(accept_field)) {
+                Add_Field_Item_(builder, context, "new_game/accept", accept_field, New_Game_Label_(accept_field));
+            }
+
+            builder->SetStart(graph::ControlId::Structural("new_game/difficulty"));
+        }
+
+        std::string New_Game_Name_() {
+            return vocab::Get(vocab::VOCAB_SCREEN_NEW_GAME);
+        }
+
         // ---- Any screen: the live field list -----------------------------------------------------
 
         bool Is_Offscreen_(const s_field* field) {
@@ -354,6 +490,7 @@ namespace access::screens {
 
         const s_screen_recipe recipes[] = {
             { "main_menu", Main_Menu_Is_Active_, Main_Menu_Instance_Key_, Main_Menu_Build_, Main_Menu_Name_ },
+            { "new_game", New_Game_Is_Active_, New_Game_Instance_Key_, New_Game_Build_, New_Game_Name_ },
             { "fields", Fields_Is_Active_, Fields_Instance_Key_, Fields_Build_, Fields_Name_ },
         };
 
