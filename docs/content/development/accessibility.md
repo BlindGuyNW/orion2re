@@ -2,7 +2,7 @@
 
 The `src/access/` layer makes screens usable with a screen reader. It builds a parallel navigation tree over live game state, speaks focus changes through Tolk, and activates controls through the game's own field handling. It follows the Graph A11y Kernel specification used by several other game accessibility mods.
 
-The layer is a prototype. The main menu and New Game screens have dedicated recipes; every other screen falls back to a generic view of the live field list.
+The layer is a prototype. The main menu, New Game, and galaxy screens have dedicated recipes; every other screen falls back to a generic view of the live field list.
 
 ## Running it
 
@@ -50,3 +50,7 @@ The generic `fields` recipe lists every on-screen field in declaration order. It
 Per-screen recipes should replace the generic one wherever a screen draws its values as text or pictures, because those values are not stored in the field list. The New Game recipe is an example: each setting has two fields that share one help box, and the selected value is drawn separately, so the recipe reads the value from the string the screen draws.
 
 When the focused control changes, the pointer moves to the centre of its field so that the game's hover highlight follows the cursor.
+
+A recipe may also declare a `Poll` hook, run every tick while it is attached, for changes that move no focus, such as the galaxy screen's system display opening inside the main loop.
+
+The galaxy recipe lists every star by distance from the player's capital, using the same visibility rules as the drawn star names, and fleets only from the detection-filtered ship icons. The main loop hit-tests the pointer when its map grid is pressed, so a star node places the pointer on a point that `MAINSCR::Find_Star_At_XY` and `Find_Ship_Icon_At_XY` resolve to that star, and presses the grid. A star outside the current view is first brought into view with `MAINSCR::Center_Map`, as the game's mini-map does, so the player never manages zoom or scrolling.

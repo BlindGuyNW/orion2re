@@ -57,6 +57,8 @@ namespace access::navigator {
         graph::ControlId spoken;
         uint64_t last_rebuild_ms = 0;
         bool fault_logged = false;
+        // Set on attach and cleared after the recipe's first poll.
+        bool poll_just_attached = false;
         // The field a node asked to press, with what it looked like then: a screen that rebuilds its
         // list before the next poll must not have a different control pressed in its place.
         int16_t pending_activation = 0;
@@ -97,6 +99,7 @@ namespace access::navigator {
             }
             Guarded_("build", [&render]() {
                 build_context.node_fields.clear();
+                build_context.node_points.clear();
                 graph::GraphBuilder builder(&cursors[attached_instance].Expanded);
                 attached->Build(&builder, &build_context);
                 render = builder.Build();
@@ -146,6 +149,7 @@ namespace access::navigator {
                 cursors.clear();
             }
             attached = match;
+            poll_just_attached = true;
             attached_instance = instance;
             key_graph = std::make_unique<graph::KeyGraph>(Render_, &cursors[attached_instance]);
             last_rebuild_ms = 0;
@@ -159,6 +163,13 @@ namespace access::navigator {
         // P11: the game highlights the field under the pointer, so the pointer follows focus.
         void Move_Pointer_To_(const graph::GraphNode* node) {
             if (node == nullptr) {
+                return;
+            }
+            auto point = build_context.node_points.find(node->Id.StructuralKey);
+            if (point != build_context.node_points.end()) {
+                if (point->second.x >= 0 && point->second.x < 640 && point->second.y >= 0 && point->second.y < 480) {
+                    platform::Force_Cursor_Pos(point->second.x, point->second.y);
+                }
                 return;
             }
             auto it = build_context.node_fields.find(node->Id.StructuralKey);
@@ -424,6 +435,11 @@ namespace access::navigator {
         bool is_enabled = SDL_GetAtomicInt(&enabled) != 0;
         if (is_enabled) {
             Sync_();
+            if (attached != nullptr && attached->Poll != nullptr) {
+                bool just_attached = poll_just_attached;
+                poll_just_attached = false;
+                Guarded_("poll", [just_attached]() { attached->Poll(just_attached); });
+            }
         }
 
         // A text field being typed into beats every other arbitration decision (spec section 8).
