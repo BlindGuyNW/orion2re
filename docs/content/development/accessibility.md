@@ -47,7 +47,7 @@ Keys are claimed only while a cursor is seated, no continuous text field is acti
 
 A recipe is an `s_screen_recipe`: an `Is_Active` predicate re-derived from live state each tick, an instance key, a `Build` function, and a screen name. The first active recipe in `screens::Recipes()` wins, and a change of recipe or instance key announces the screen again.
 
-The generic `fields` recipe lists every on-screen field in declaration order. It labels a field with the text the game draws on it, then the title of the help box containing its centre, then its hotkey. It omits keyboard-only hotkeys and lists a full-screen catch-all region only when the screen has no other control.
+The generic `fields` recipe lists every on-screen field in declaration order. It labels a field with the text the game draws on it, then the title of the help box containing its centre, then its hotkey. It omits keyboard-only hotkeys. A full-screen catch-all region comes last, named "Click anywhere", because some screens, such as the detailed ship view, close only on a click outside their controls.
 
 Per-screen recipes should replace the generic one wherever a screen draws its values as text or pictures, because those values are not stored in the field list. The New Game recipe is an example: each setting has two fields that share one help box, and the selected value is drawn separately, so the recipe reads the value from the string the screen draws.
 

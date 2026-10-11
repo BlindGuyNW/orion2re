@@ -444,7 +444,7 @@ namespace access::screens {
         }
 
         // Keyboard-only hotkeys have no visual counterpart, and a full-screen "click anywhere"
-        // region is listed only when it is the screen's sole control.
+        // region is listed in place only when it is the screen's sole control.
         bool Field_Is_Listed_(int16_t field_idx, bool has_specific_field) {
             const s_field* field = &fields::fields[field_idx];
             if (field->field_type == FIELD_TYPE_MULTI_HOTKEY || Is_Offscreen_(field)) {
@@ -483,6 +483,29 @@ namespace access::screens {
                 char key[48];
                 snprintf(key, sizeof(key), "field/%d/%d,%d", (int)i, (int)field->x, (int)field->y);
                 Add_Field_Item_(builder, context, key, i, Field_Label_(i));
+            }
+
+            // Some screens close only on a click outside their controls, such as the detailed ship
+            // view, so a full-screen region is still listed after them. What it does depends on
+            // the screen, so it is named for the gesture.
+            if (!has_specific_field) {
+                return;
+            }
+            for (int16_t i = 1; i < fields::fields_count; ++i) {
+                const s_field* field = &fields::fields[i];
+                if (!Is_Catch_All_(field)) {
+                    continue;
+                }
+                std::string label = Field_Own_Text_(field);
+                if (label.empty()) {
+                    label = Hotkey_Text_(field);
+                }
+                if (label.empty()) {
+                    label = vocab::Get(vocab::VOCAB_CLICK_ANYWHERE);
+                }
+                char key[48];
+                snprintf(key, sizeof(key), "field/%d/anywhere", (int)i);
+                Add_Field_Item_(builder, context, key, i, label);
             }
         }
 

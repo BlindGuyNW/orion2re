@@ -94,6 +94,7 @@ namespace access::vocab {
         VOCAB_FLEET_DISPLAY,
         VOCAB_FLEET_DISPLAY_AT,
         VOCAB_CLOSE,
+        VOCAB_CLICK_ANYWHERE,
         VOCAB_MESSAGE,
         VOCAB_FLEET_ALL,
 

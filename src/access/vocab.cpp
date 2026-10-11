@@ -92,6 +92,7 @@ namespace access::vocab {
             "Fleet",
             "Fleet at %1",
             "Close",
+            "Click anywhere",
             "Message",
             "All ships",
         };
