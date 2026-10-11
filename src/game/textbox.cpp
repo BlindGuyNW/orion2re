@@ -13,6 +13,8 @@ namespace TEXTBOX {
     MOX2::action_func_t textbox_af;
     uint16_t old_help_list_active;
     int32_t base_colors[3] = {160, 192, 224};
+    const char* shown_title;
+    const char* shown_text;
 
     void __cdecl Get_Help_Lbx_Name(char* help_lbx_name, size_t help_lbx_name_size) {
         const char* selected_name;
@@ -247,7 +249,11 @@ namespace TEXTBOX {
         /* "\x1B" is fmtpara's color-attribute control byte; used here as a non-printing field label. */
         fields::Add_Hidden_Field(0, 0, 639, 479, "\x1B", 41);
 
+        shown_title = title;
+        shown_text = text;
         Text_Box_Get_Input(input_ticks);
+        shown_title = nullptr;
+        shown_text = nullptr;
 
         animate::Set_Animation_Frame(anim, 1);
         animate::Remap_Draw(x + 158, bottom_y - 27, anim);

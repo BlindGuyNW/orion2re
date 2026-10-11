@@ -51,7 +51,7 @@ Some existing tests (`tests/unit/mapgen_test.cpp`, `tests/fakes/fake_mapgen_plan
 - **Debug overlay**: an ImGui inspector and editor enabled with `interface debugger_enabled = true;` and toggled with F10.
 - **Screen reader layer** (`src/access/`, `docs/content/development/accessibility.md`): a parallel navigation tree built on the Graph A11y Kernel, with speech through Tolk.
   - `src/access/graph/` is lifted verbatim from another project and keeps its own style (including `std::logic_error` throws); keep it byte-close to upstream.
-  - The game hooks are `Offer_Key_Down` in `platform.cpp`, `Tick` and the activation handoff in `fields::Get_Input()`, and lifecycle calls in `MOX2::thunk_main2()`.
+  - The game hooks are `Offer_Key_Down` in `platform.cpp`, `Tick` and the activation handoff in `fields::Get_Input()`, the shown title and text in `TEXTBOX::Do_Text_Box()`, and lifecycle calls in `MOX2::thunk_main2()`.
   - Each screen is a recipe in `src/access/screens.cpp`, matched against live state every tick. A generic recipe turns any screen's field list into a navigable menu, labelled from field text and HELP.LBX titles. Screens that draw their values as text or pictures (New Game settings, the galaxy map) need dedicated recipes.
   - Activation goes through the game's own hotkey press path rather than reimplementing screen logic, and readouts must not reveal anything a sighted player can't currently see.
   - `speech.log` in the working directory records every spoken line, so it works as a test oracle without a screen reader running.

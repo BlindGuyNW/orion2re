@@ -15,6 +15,9 @@ namespace TEXTBOX {
     extern MOX2::action_func_t textbox_af;
     extern uint16_t old_help_list_active;
     extern int32_t base_colors[3];
+    // What Do_Text_Box is showing while it waits for input, for the screen reader layer.
+    extern const char* shown_title;
+    extern const char* shown_text;
 
     /* Selects the localized help LBX filename for the active language.
        help_lbx_name: Receives the output filename buffer.

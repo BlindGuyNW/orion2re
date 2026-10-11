@@ -20,6 +20,7 @@ namespace fields {
         }
 
         int16_t Press_Field_By_Hotkey_(int16_t field_idx, int16_t ptr_x, int16_t ptr_y);
+        int16_t Right_Click_Field_(int16_t field_idx);
     } // namespace
 
     MOX2::action_func_t update_function;
@@ -187,8 +188,10 @@ namespace fields {
 
         int16_t input_result = 0;
         int16_t access_field = 0;
-        if (access::navigator::Take_Field_Activation(&access_field) && access_field > 0 && access_field < fields_count) {
-            input_result = Press_Field_By_Hotkey_(access_field, mouse::Pointer_X(), mouse::Pointer_Y());
+        bool access_secondary = false;
+        if (access::navigator::Take_Field_Activation(&access_field, &access_secondary) && access_field > 0 && access_field < fields_count) {
+            input_result = access_secondary ? Right_Click_Field_(access_field)
+                                            : Press_Field_By_Hotkey_(access_field, mouse::Pointer_X(), mouse::Pointer_Y());
         } else {
             input_result = Interpret_Mouse_Input();
         }
@@ -937,6 +940,19 @@ namespace fields {
             }
             down_mouse_button = -1;
             return field_idx;
+        }
+
+        // A right click released over the field, in Interpret_Mouse_Input's order: a help box
+        // under the pointer opens first, then an enabled cancel wins over the field.
+        int16_t Right_Click_Field_(int16_t field_idx) {
+            if (help_list_active != 0 && Check_Help_List() == 0) {
+                return 0;
+            }
+            if (mouse_cancel_disabled == 0) {
+                return -1;
+            }
+            down_mouse_button = -1;
+            return (int16_t)-field_idx;
         }
     } // namespace
 

@@ -2,7 +2,7 @@
 
 The `src/access/` layer makes screens usable with a screen reader. It builds a parallel navigation tree over live game state, speaks focus changes through Tolk, and activates controls through the game's own field handling. It follows the Graph A11y Kernel specification used by several other game accessibility mods.
 
-The layer is a prototype. The main menu, New Game, and galaxy screens have dedicated recipes; every other screen falls back to a generic view of the live field list.
+The layer is a prototype. The main menu, New Game, and galaxy screens and the game's message box have dedicated recipes; every other screen falls back to a generic view of the live field list.
 
 ## Running it
 
@@ -15,6 +15,7 @@ Copy the x64 or x86 `Tolk.dll` that matches the build, together with its screen 
 | Home / End | First / last control. |
 | Tab / Shift+Tab | Next / previous zone. |
 | Enter | Activate the focused control. |
+| Backspace | Right-click the focused control, where the game gives it a right-click action. |
 | Space | Read the focused control's help text. |
 | Ctrl+L | Repeat the screen name and focused control. |
 | Ctrl+R | Repeat the last spoken line. |
@@ -33,10 +34,11 @@ Escape and every other key keep their game meaning. Numeric keypad keys are neve
 
 ## Game integration
 
-The layer touches the game in three places:
+The layer touches the game in four places:
 
 - `platform.cpp` offers each key-down to `access::navigator::Offer_Key_Down()` on the platform thread before translation. A claimed key is queued for the game thread and never reaches the legacy keyboard ring. The claim check reads only atomics, so it never waits for the game thread.
-- `fields::Get_Input()` calls `access::navigator::Tick()` on every poll. A requested activation then runs through the same press path as a field hotkey, so radio and locked toggles, the pressed drawing, the auto function, and the field sound all behave as they would for a keyboard shortcut.
+- `fields::Get_Input()` calls `access::navigator::Tick()` on every poll. A requested activation then runs through the same press path as a field hotkey, so radio and locked toggles, the pressed drawing, the auto function, and the field sound all behave as they would for a keyboard shortcut. A requested right-click follows `Interpret_Mouse_Input`'s order instead: a help box under the pointer opens first, then an enabled cancel returns -1, and otherwise the game reads the negated field index.
+- `TEXTBOX::Do_Text_Box()` publishes the title and text it is showing while it waits for input.
 - `MOX2::thunk_main2()` initializes and shuts down the layer on the game thread.
 
 Keys are claimed only while a cursor is seated, no continuous text field is active, and the game thread has polled fields within the last 300 milliseconds. Text-entry loops, animations, and loads that do not poll fields therefore receive their keys normally.
@@ -55,4 +57,6 @@ A recipe may also declare a `Poll` hook, run every tick while it is attached, to
 
 The galaxy recipe lists every star by distance from the player's capital, using the same visibility rules as the drawn star names, and fleets only from the detection-filtered ship icons. The main loop hit-tests the pointer when its map grid is pressed, so a star node places the pointer on a point that `MAINSCR::Find_Star_At_XY` and `Find_Ship_Icon_At_XY` resolve to that star, and presses the grid. A star outside the current view is first brought into view with `MAINSCR::Center_Map`, as the game's mini-map does, so the player never manages zoom or scrolling.
 
-The system display that opens over the map has no text in its fields: the game draws planet and fleet details from data when the pointer hovers over them. Its stop lists planets innermost first, then fleets in orbit, gates, and the wormhole line, each read with the lines of the matching hover box (`SYS::Do_Print_Planet_Info`, `Do_Print_System_Ship_Data`, `Print_Gate_Info`). The title bar, background, and orbit grid are left out. Pressing a planet or fleet presses its field, so the game opens the colony screen or fleet box as a click would. An asteroid belt has no field, so its node places the pointer on the belt's orbit and presses the orbit grid.
+The system display that opens over the map has no text in its fields: the game draws planet and fleet details from data when the pointer hovers over them. Its stop lists planets innermost first, then fleets in orbit, gates, and the wormhole line, each read with the lines of the matching hover box (`SYS::Do_Print_Planet_Info`, `Do_Print_System_Ship_Data`, `Print_Gate_Info`). The title bar, background, and orbit grid are left out. Pressing a planet or fleet presses its field, so the game opens the colony screen or fleet box as a click would. An asteroid belt has no field, so its node places the pointer on the belt's orbit and presses the orbit grid. Backspace on a planet right-clicks it, which opens the game's colony potential box.
+
+`TEXTBOX::Do_Text_Box` leaves the screen's fields in place under its own full-screen field, so it publishes the title and text it shows in `TEXTBOX::shown_title` and `shown_text` while it waits for input. The text box recipe matches first while those are set, and lists the message one line at a time. Enter on any line dismisses the box, as any click would.

@@ -7,7 +7,8 @@
 // The graph navigator and screen manager (graph a11y spec sections 7 to 9).
 //
 // Keys while a screen is attached: arrows move, Home/End jump to the ends, Tab/Shift+Tab cycle
-// zones, Enter activates, Space reads the focused control's help, Ctrl+L repeats where you are.
+// zones, Enter activates, Backspace right-clicks where the control has one, Space reads the
+// focused control's help, Ctrl+L repeats where you are.
 // Escape and every other key go to the game as usual.
 // Everywhere: Ctrl+R repeats the last thing spoken, Ctrl+Shift+A turns the layer on or off.
 namespace access::navigator {
@@ -27,7 +28,9 @@ namespace access::navigator {
     // Game thread. A node's activation asks for its field; Get_Input performs it through the
     // game's own hotkey path on the same call.
     void Request_Field_Activation(int16_t field_idx);
-    bool Take_Field_Activation(int16_t* field_idx);
+    // The right-click equivalent, which the game reads as the negated field index.
+    void Request_Field_Secondary(int16_t field_idx);
+    bool Take_Field_Activation(int16_t* field_idx, bool* secondary);
 
     // Game thread. Deferred programmatic focus (spec 7.3): on the differ's next pass, focus lands
     // in the Tab-stop and the differ announces it. A stop not built yet is retried for a short

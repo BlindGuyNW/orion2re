@@ -40,6 +40,10 @@ DOCTEST_TEST_SUITE("access game text normalization") {
         CHECK_EQ(access::text::Normalize_Game_Text("Stop\x1FPhere"), std::string("Stophere"));
     }
 
+    DOCTEST_TEST_CASE("an alignment change separates a label from its value") {
+        CHECK_EQ(access::text::Normalize_Game_Text("\x1A" "0Max Population" "\x1A" "112"), std::string("Max Population 12"));
+    }
+
     DOCTEST_TEST_CASE("foreground and background color commands are removed") {
         CHECK_EQ(access::text::Normalize_Game_Text("\x1C" "2Red"), std::string("Red"));
         CHECK_EQ(access::text::Normalize_Game_Text("\x1C" "61Shaded"), std::string("Shaded"));

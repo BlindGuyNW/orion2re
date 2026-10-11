@@ -39,6 +39,8 @@ namespace access::navigator {
         SDL_AtomicInt initialized;
         SDL_AtomicInt enabled;
         SDL_AtomicInt claims_navigation;
+        // Backspace is claimed only while the focused control has a right-click equivalent.
+        SDL_AtomicInt claims_secondary;
         SDL_AtomicU32 last_tick_ms;
 
         // Never destroyed: the platform thread can still offer keys after the game thread exits.
@@ -62,6 +64,7 @@ namespace access::navigator {
         // The field a node asked to press, with what it looked like then: a screen that rebuilds its
         // list before the next poll must not have a different control pressed in its place.
         int16_t pending_activation = 0;
+        bool pending_activation_secondary = false;
         s_field pending_activation_field;
         // A Tab-stop a recipe asked focus to move into, and how many differ passes it has waited.
         std::string pending_focus_stop;
@@ -285,6 +288,11 @@ namespace access::navigator {
                     Guarded_("activate", [&]() { activated = key_graph->Activate(); });
                     pending_state_feedback = activated;
                 } break;
+                case SDLK_BACKSPACE: {
+                    bool activated = false;
+                    Guarded_("secondary", [&]() { activated = key_graph->Secondary(); });
+                    pending_state_feedback = activated;
+                } break;
                 case SDLK_SPACE: {
                     bool had_tooltip = false;
                     Guarded_("tooltip", [&]() { had_tooltip = key_graph->Tooltip(); });
@@ -326,6 +334,7 @@ namespace access::navigator {
             SDL_SetAtomicInt(&enabled, now_enabled ? 1 : 0);
             Detach_();
             SDL_SetAtomicInt(&claims_navigation, 0);
+            SDL_SetAtomicInt(&claims_secondary, 0);
             speech::Say(vocab::Get(now_enabled ? vocab::VOCAB_LAYER_ON : vocab::VOCAB_LAYER_OFF), true);
         }
 
@@ -357,6 +366,7 @@ namespace access::navigator {
 
         SDL_SetAtomicInt(&enabled, 1);
         SDL_SetAtomicInt(&claims_navigation, 0);
+        SDL_SetAtomicInt(&claims_secondary, 0);
         SDL_SetAtomicInt(&initialized, key_mutex != nullptr ? 1 : 0);
         speech::Say(vocab::Get(vocab::VOCAB_STARTUP), false);
     }
@@ -418,6 +428,9 @@ namespace access::navigator {
                 case SDLK_KP_ENTER:
                 case SDLK_SPACE:
                     claimed = true;
+                    break;
+                case SDLK_BACKSPACE:
+                    claimed = SDL_GetAtomicInt(&claims_secondary) != 0;
                     break;
                 default:
                     break;
@@ -512,6 +525,8 @@ namespace access::navigator {
         // Keys are claimed only while a cursor is seated; otherwise they keep their game meaning.
         bool has_focus = key_graph != nullptr && key_graph->Current() != nullptr && key_graph->CurrentNode() != nullptr;
         SDL_SetAtomicInt(&claims_navigation, is_enabled && has_focus && !typing ? 1 : 0);
+        bool has_secondary = has_focus && key_graph->CurrentNode()->Vtable.OnSecondary != nullptr;
+        SDL_SetAtomicInt(&claims_secondary, has_secondary ? 1 : 0);
     }
 
     void Request_Field_Activation(int16_t field_idx) {
@@ -519,7 +534,13 @@ namespace access::navigator {
             return;
         }
         pending_activation = field_idx;
+        pending_activation_secondary = false;
         pending_activation_field = fields::fields[field_idx];
+    }
+
+    void Request_Field_Secondary(int16_t field_idx) {
+        Request_Field_Activation(field_idx);
+        pending_activation_secondary = pending_activation == field_idx;
     }
 
     void Request_Focus_Stop(const char* stop_key) {
@@ -527,9 +548,10 @@ namespace access::navigator {
         pending_focus_passes = 0;
     }
 
-    bool Take_Field_Activation(int16_t* field_idx) {
+    bool Take_Field_Activation(int16_t* field_idx, bool* secondary) {
         int16_t requested = pending_activation;
         pending_activation = 0;
+        *secondary = pending_activation_secondary;
         if (requested <= 0 || requested >= fields::fields_count) {
             return false;
         }

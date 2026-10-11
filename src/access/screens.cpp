@@ -1001,12 +1001,16 @@ namespace access::screens {
         }
 
         // Pressing a field the game reads as a click: a planet opens its colony screen when it is
-        // the player's, a fleet opens its fleet box.
+        // the player's, a fleet opens its fleet box. A right click on a planet other than a gas
+        // giant opens its colony potential (MAINSCR::Scan_System_Display_Fields).
         void Add_System_Field_Node_(graph::GraphBuilder* builder, s_build_context* context, const std::string& key,
-            int16_t field_idx, const std::vector<std::string>& lines, const graph::ControlType* type) {
+            int16_t field_idx, const std::vector<std::string>& lines, const graph::ControlType* type, bool has_secondary) {
             graph::NodeVtable vtable = Info_Vtable_(lines);
             vtable.Type = type;
             vtable.OnActivate = [field_idx]() { navigator::Request_Field_Activation(field_idx); };
+            if (has_secondary) {
+                vtable.OnSecondary = [field_idx]() { navigator::Request_Field_Secondary(field_idx); };
+            }
             vtable.OnTooltip = [field_idx]() { Speak_Field_Help_(field_idx); };
             context->node_fields[key] = field_idx;
             builder->AddItem(graph::ControlId::Structural(key), vtable);
@@ -1071,12 +1075,13 @@ namespace access::screens {
                         int16_t y = 0;
                         if (Asteroid_Point_(MOX::planet[planet_idx].orbit, &x, &y)) {
                             context->node_points[key] = s_pointer_target{ x, y };
-                            Add_System_Field_Node_(builder, context, key, MOX::system_display_grid_field, lines, nullptr);
+                            Add_System_Field_Node_(builder, context, key, MOX::system_display_grid_field, lines, nullptr, false);
                             continue;
                         }
                         builder->AddItem(graph::ControlId::Structural(key), Info_Vtable_(lines));
                     } else if (Is_Valid_Field_(MOX::planet_buttons[slot])) {
-                        Add_System_Field_Node_(builder, context, key, MOX::planet_buttons[slot], lines, nullptr);
+                        Add_System_Field_Node_(builder, context, key, MOX::planet_buttons[slot], lines, nullptr,
+                            MOX::planet[planet_idx].planet_type != PLANET_TYPE_GAS_GIANT);
                     } else {
                         builder->AddItem(graph::ControlId::Structural(key), Info_Vtable_(lines));
                     }
@@ -1089,7 +1094,7 @@ namespace access::screens {
                         continue;
                     }
                     Add_System_Field_Node_(builder, context, base + "/fleet/" + std::to_string(slot), ships->button,
-                        System_Fleet_Lines_(ships->ship_idx), &button_type);
+                        System_Fleet_Lines_(ships->ship_idx), &button_type, false);
                 }
 
                 const int16_t gate_slots[] = { 3, 0 };
@@ -1245,7 +1250,66 @@ namespace access::screens {
             polled_fleet_stack = fleet_stack;
         }
 
+        // ---- Text box ----------------------------------------------------------------------------
+
+        // TEXTBOX::Do_Text_Box draws its message over the screen and waits for any input, leaving
+        // the screen's own fields in place beneath a full-screen hidden field of its own.
+        bool Text_Box_Is_Active_() {
+            return TEXTBOX::shown_text != nullptr;
+        }
+
+        std::string Text_Box_Instance_Key_() {
+            std::string key = "text_box/";
+            if (TEXTBOX::shown_title != nullptr) {
+                key += TEXTBOX::shown_title;
+            }
+            key += '/';
+            key += TEXTBOX::shown_text;
+            return key;
+        }
+
+        std::string Text_Box_Name_() {
+            std::string title = text::Normalize_Game_Text(TEXTBOX::shown_title);
+            return title.empty() ? std::string(vocab::Get(vocab::VOCAB_MESSAGE)) : title;
+        }
+
+        // The box's own dismiss field is the last one added; any input closes the box.
+        int16_t Text_Box_Dismiss_Field_() {
+            for (int16_t i = (int16_t)(fields::fields_count - 1); i > 0; --i) {
+                if (Is_Catch_All_(&fields::fields[i])) {
+                    return i;
+                }
+            }
+            return 0;
+        }
+
+        // One node per line of the message, so a long message can be read a paragraph at a time.
+        void Text_Box_Build_(graph::GraphBuilder* builder, s_build_context*) {
+            int16_t dismiss = Text_Box_Dismiss_Field_();
+            std::string raw = TEXTBOX::shown_text;
+            size_t start = 0;
+            int32_t line_number = 0;
+            while (start <= raw.size()) {
+                size_t end = raw.find('\n', start);
+                if (end == std::string::npos) {
+                    end = raw.size();
+                }
+                std::string line = text::Normalize_Game_Text(raw.substr(start, end - start).c_str());
+                start = end + 1;
+                if (line.empty()) {
+                    continue;
+                }
+                std::string key = "text_box/line/" + std::to_string(line_number++);
+                graph::NodeVtable vtable = Info_Vtable_(std::vector<std::string>{ line });
+                if (Is_Valid_Field_(dismiss)) {
+                    vtable.OnActivate = [dismiss]() { navigator::Request_Field_Activation(dismiss); };
+                }
+                builder->AddItem(graph::ControlId::Structural(key), vtable);
+            }
+        }
+
         const s_screen_recipe recipes[] = {
+            { "text_box", Text_Box_Is_Active_, Text_Box_Instance_Key_, Text_Box_Build_, Text_Box_Name_ },
             { "main_menu", Main_Menu_Is_Active_, Main_Menu_Instance_Key_, Main_Menu_Build_, Main_Menu_Name_ },
             { "new_game", New_Game_Is_Active_, New_Game_Instance_Key_, New_Game_Build_, New_Game_Name_ },
             { "galaxy", Galaxy_Is_Active_, Galaxy_Instance_Key_, Galaxy_Build_, Galaxy_Name_, Galaxy_Poll_ },

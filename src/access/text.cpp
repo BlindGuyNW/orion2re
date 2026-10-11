@@ -56,7 +56,15 @@ namespace access::text {
                     continue;
                 }
 
-                if (c == 0x17 || c == 0x1A || c == 0x1B || c == 0x1D || c == 0x1F) {
+                // An alignment change splits a line into a left-aligned label and a right-aligned
+                // value, which are drawn apart.
+                if (c == 0x1A) {
+                    out.push_back(' ');
+                    i += 2;
+                    continue;
+                }
+
+                if (c == 0x17 || c == 0x1B || c == 0x1D || c == 0x1F) {
                     i += 2;
                     continue;
                 }
