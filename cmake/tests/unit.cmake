@@ -1959,3 +1959,15 @@ orion2re_add_unit_test(test_router_client
         orion2re_lz4
     LINK_SDL
 )
+
+orion2re_add_unit_test(test_access_graph
+    SOURCES
+        tests/unit/access/graph_announcer_test.cpp
+        tests/unit/access/graph_builder_test.cpp
+        tests/unit/access/graph_flyout_test.cpp
+        tests/unit/access/key_graph_test.cpp
+    PRODUCTION_SOURCES
+        src/access/graph/GraphAnnouncer.cpp
+        src/access/graph/GraphBuilder.cpp
+        src/access/graph/KeyGraph.cpp
+)
