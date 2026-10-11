@@ -6,6 +6,7 @@ The restoration deliberately preserves some original runtime models where replac
 
 ## Contents
 
+- [Screen reader accessibility](accessibility.md) describes the parallel navigation layer, its speech output, and its three hooks into the game.
 - [Fields](fields.md) describes the global field list used for buttons, hit regions, text input, lists, help, and keyboard shortcuts.
 - [Networking](networking.md) describes the router-based TCP transport, LAN discovery, session model, and game-owned disconnect handling.
 - [Threading and SDL](threading.md) describes the two-thread arrangement inherited from `orion95.exe` and the frame, input, cursor, and exit handoffs used by the SDL port.

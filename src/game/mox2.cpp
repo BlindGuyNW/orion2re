@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "access/navigator.h"
+
 #include <exception>
 #include "config/config_loader.h"
 
@@ -427,6 +429,7 @@ namespace MOX2 {
     int SDLCALL thunk_main2(void* unused) {
         (void)unused;
         try {
+            access::navigator::Initialize();
             main2();
         } catch (const platform::process_exit_requested&) {
             SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "mox2: game thread exit requested message='%s'", platform::Exit_Message());
@@ -438,6 +441,7 @@ namespace MOX2 {
             platform::Request_Fatal_Exit("unknown game thread exception");
         }
 
+        access::navigator::Shutdown();
         sound::Destroy_Sound();
         netcode::Net_Uninit();
 

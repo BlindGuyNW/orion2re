@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "access/navigator.h"
+
 namespace fields {
     namespace {
         s_field g_fields_storage[MAX_FIELDS_COUNT];
@@ -16,6 +18,8 @@ namespace fields {
             }
             return hotkey;
         }
+
+        int16_t Press_Field_By_Hotkey_(int16_t field_idx, int16_t ptr_x, int16_t ptr_y);
     } // namespace
 
     MOX2::action_func_t update_function;
@@ -166,6 +170,7 @@ namespace fields {
 
     int16_t __cdecl Get_Input() {
         platform::Check_Exit();
+        access::navigator::Tick();
 
         if (input_delay > 0) {
             input_delay--;
@@ -180,7 +185,13 @@ namespace fields {
             return 0;
         }
 
-        int16_t input_result = Interpret_Mouse_Input();
+        int16_t input_result = 0;
+        int16_t access_field = 0;
+        if (access::navigator::Take_Field_Activation(&access_field) && access_field > 0 && access_field < fields_count) {
+            input_result = Press_Field_By_Hotkey_(access_field, mouse::Pointer_X(), mouse::Pointer_Y());
+        } else {
+            input_result = Interpret_Mouse_Input();
+        }
         video::Set_Page_Off();
 
         if (input_result != 0) {
@@ -894,6 +905,41 @@ namespace fields {
         return result;
     }
 
+    namespace {
+        // The hotkey press: draws the field down, applies its toggle, and returns its action value.
+        int16_t Press_Field_By_Hotkey_(int16_t field_idx, int16_t ptr_x, int16_t ptr_y) {
+            if (fields[field_idx].field_type == FIELD_TYPE_SCROLL) {
+                return 0;
+            }
+
+            Push_Field_Down(field_idx, ptr_x, ptr_y);
+            int16_t field_type = fields[field_idx].field_type;
+
+            if (field_type == FIELD_TYPE_RADIO) {
+                s_field_radio* radio = Field_Data_Radio(&fields[field_idx]);
+                if (*radio->selection == 0) {
+                    *radio->selection = 1;
+                } else {
+                    *radio->selection = 0;
+                }
+            } else if (field_type == FIELD_TYPE_LOCKED) {
+                s_field_locked* locked = Field_Data_Locked_Button(&fields[field_idx]);
+                if (*locked->selection == 0) {
+                    *locked->selection = 1;
+                }
+            } else if (field_type == FIELD_TYPE_SCROLL_RETURN) {
+                down_mouse_button = -1;
+                return Field_Data_Scroll(&fields[field_idx])->return_value;
+            }
+
+            if (field_type != FIELD_TYPE_HIDDEN && field_type != FIELD_TYPE_MULTI_HOTKEY) {
+                Quick_Call_Auto_Function();
+            }
+            down_mouse_button = -1;
+            return field_idx;
+        }
+    } // namespace
+
     int16_t __cdecl Interpret_Mouse_Input() {
         platform::Check_Exit();
 
@@ -955,35 +1001,7 @@ namespace fields {
             }
 
             if (field_idx != 0 && (int16_t)fields[field_idx].hotkey == (int16_t)key_code) {
-                if (fields[field_idx].field_type == FIELD_TYPE_SCROLL) {
-                    return 0;
-                }
-
-                Push_Field_Down(field_idx, ptr_x, ptr_y);
-                int16_t field_type = fields[field_idx].field_type;
-
-                if (field_type == FIELD_TYPE_RADIO) {
-                    s_field_radio* radio = Field_Data_Radio(&fields[field_idx]);
-                    if (*radio->selection == 0) {
-                        *radio->selection = 1;
-                    } else {
-                        *radio->selection = 0;
-                    }
-                } else if (field_type == FIELD_TYPE_LOCKED) {
-                    s_field_locked* locked = Field_Data_Locked_Button(&fields[field_idx]);
-                    if (*locked->selection == 0) {
-                        *locked->selection = 1;
-                    }
-                } else if (field_type == FIELD_TYPE_SCROLL_RETURN) {
-                    down_mouse_button = -1;
-                    return Field_Data_Scroll(&fields[field_idx])->return_value;
-                }
-
-                if (field_type != FIELD_TYPE_HIDDEN && field_type != FIELD_TYPE_MULTI_HOTKEY) {
-                    Quick_Call_Auto_Function();
-                }
-                down_mouse_button = -1;
-                return field_idx;
+                return Press_Field_By_Hotkey_(field_idx, ptr_x, ptr_y);
             }
 
             if (key_code == 0x1C0D || key_code == (int16_t)0xE00D) {

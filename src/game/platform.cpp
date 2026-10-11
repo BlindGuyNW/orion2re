@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "access/navigator.h"
+
 #include "config/config_runtime.h"
 #include "game/scalers/scaler.h"
 
@@ -649,6 +651,10 @@ namespace platform {
         }
 
         void Handle_SDL_Key_Down(const SDL_KeyboardEvent& key_event) {
+            if (access::navigator::Offer_Key_Down(key_event.key, key_event.mod, key_event.repeat)) {
+                return;
+            }
+
             if (key_event.repeat) {
                 return;
             }

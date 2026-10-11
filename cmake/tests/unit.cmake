@@ -1871,6 +1871,7 @@ orion2re_add_unit_test(test_fields
         src/game/exitm.cpp
         src/game/fields.cpp
     FAKE_SOURCES
+        tests/fakes/fake_access_navigator.cpp
         tests/fakes/fake_animate.cpp
         tests/fakes/fake_fields_runtime.cpp
         tests/fakes/fake_input.cpp
@@ -1970,4 +1971,13 @@ orion2re_add_unit_test(test_access_graph
         src/access/graph/GraphAnnouncer.cpp
         src/access/graph/GraphBuilder.cpp
         src/access/graph/KeyGraph.cpp
+)
+
+orion2re_add_unit_test(test_access_text
+    SOURCES
+        tests/unit/access/access_text_test.cpp
+    PRODUCTION_SOURCES
+        src/access/text.cpp
+        src/access/vocab.cpp
+        src/config/text_encoding.cpp
 )

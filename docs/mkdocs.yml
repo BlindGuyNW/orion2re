@@ -129,6 +129,7 @@ nav:
       - Structured setting fields: generated/configuration/record-layouts.md
   - Development:
       - development/index.md
+      - Screen reader accessibility: development/accessibility.md
       - Fields: development/fields.md
       - Networking: development/networking.md
       - Threading and SDL: development/threading.md
