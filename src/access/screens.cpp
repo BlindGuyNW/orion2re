@@ -693,6 +693,7 @@ namespace access::screens {
         int32_t pending_star_ticks = 0;
 
         void Await_Star_(int16_t star_idx);
+        std::string Star_Eta_Text_(int16_t star_idx);
 
         void Say_Star_Unreachable_(int16_t star_idx) {
             speech::Say(vocab::Format(vocab::VOCAB_STAR_UNREACHABLE, Star_Label_(star_idx)), true);
@@ -750,6 +751,7 @@ namespace access::screens {
                 vtable.Announcements.push_back(graph::NodeAnnouncement::Static(distance));
             }
             vtable.Announcements.push_back(graph::NodeAnnouncement([star_idx]() { return Star_Fleets_(star_idx); }, true, Value));
+            vtable.Announcements.push_back(graph::NodeAnnouncement([star_idx]() { return Star_Eta_Text_(star_idx); }, true, Value));
 
             int16_t x = 0;
             int16_t y = 0;
@@ -801,6 +803,242 @@ namespace access::screens {
             return star_idx >= 0 && star_idx < MOX::NUM_STARS
                 ? vocab::Format(vocab::VOCAB_FLEET_DISPLAY_AT, Star_Label_(star_idx))
                 : std::string(vocab::Get(vocab::VOCAB_FLEET_DISPLAY));
+        }
+
+        // ---- Fleet box -----------------------------------------------------------------------------
+
+        graph::NodeVtable Info_Vtable_(const std::vector<std::string>& lines) {
+            graph::NodeVtable vtable;
+            for (size_t i = 0; i < lines.size(); ++i) {
+                vtable.Announcements.push_back(graph::NodeAnnouncement::Static(lines[i]));
+                vtable.Announcements.back().Kind = i == 0 ? Label : Value;
+            }
+            return vtable;
+        }
+
+        // Mirrors FLEETPOP::Get_Fleetpop_Scanned_Ship_Info: the player's ships by
+        // design name, other empires' warships only by hull.
+        std::string Fleet_Icon_Name_(int16_t icon_idx) {
+            int16_t ship_idx = HACCESS::Fleet_Movement_Ship_Id(icon_idx);
+            const s_ship_data* ship = &MOX::ship[ship_idx];
+            int16_t owner = HACCESS::Ship_Owner(ship_idx);
+            if (owner != MOX::PLAYER_NUM && owner <= 8 && HACCESS::Is_Combat_Ship(ship_idx)) {
+                return text::Normalize_Game_Text(TECHDATA::hull_data[(int8_t)ship->d.size].name);
+            }
+            char name[sizeof(ship->d.name) + 1] = {};
+            memcpy(name, ship->d.name, sizeof(ship->d.name));
+            return text::Normalize_Game_Text(name);
+        }
+
+        // The status line FLEETPOP::Print_Fleet_Box_Info draws under the ships. The draw adopts the
+        // last chosen icon as the scanned ship one frame before it prints it; this reads the
+        // settled result without changing anything.
+        std::string Fleet_Box_Status_Text_() {
+            if (!MOVEBOX::Moveable_Box_Selected(2) || MOX::fleet_box.count <= 0) {
+                return std::string();
+            }
+            int16_t ship_idx = HACCESS::Fleet_Movement_Ship_Id(0);
+            bool icon_selected = FLEETPOP::Some_Icon_Selected();
+            int16_t scanned = MOX::fleet_ship_scanned;
+            int16_t info_type = 9;
+            int16_t value = -1;
+            int16_t destination = -1;
+
+            if (MOX::eta_star_id == -1) {
+                if (scanned == -1 && !icon_selected && MAINSCR::fleet_icon_chosen != -1) {
+                    scanned = MAINSCR::fleet_icon_chosen;
+                }
+                if (scanned != -1) {
+                    info_type = 0;
+                } else if (MOX::ship[ship_idx].status == 0) {
+                    info_type = 1;
+                    value = MOX::ship[ship_idx].location;
+                } else {
+                    FLEETPOP::Get_Absolute_Location_Scan_Info(ship_idx, &value, &destination, &info_type);
+                }
+            } else if (MOX::eta_star_id > -1 && icon_selected) {
+                const s_ship_move_info* move = &MOX::g_ship_move_info;
+                bool visited = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, MOX::eta_star_id) != 0;
+                if (move->moving != 0) {
+                    if (move->turns_left == 0) {
+                        info_type = 1;
+                        value = MOX::eta_star_id;
+                    } else {
+                        info_type = visited ? 2 : 3;
+                        value = (uint8_t)move->turns_left;
+                        destination = MOX::eta_star_id;
+                    }
+                } else if (move->blackhole_blocks != 0) {
+                    info_type = 4;
+                } else if (move->immobile != 0) {
+                    info_type = 5;
+                } else if (move->out_of_range != 0) {
+                    info_type = visited ? 6 : 7;
+                    value = (uint8_t)move->parsecs;
+                    destination = MOX::eta_star_id;
+                } else if (move->hyperspace_flux != 0) {
+                    info_type = 8;
+                }
+            }
+
+            char text[200] = {};
+            const char* star_name = destination >= 0 && destination < MOX::NUM_STARS ? MOX::star[destination].name : "";
+            switch (info_type) {
+                case 0: return scanned >= 0 && scanned < MOX::fleet_box.count ? Fleet_Icon_Name_(scanned) : std::string();
+                case 1: snprintf(text, sizeof(text), HAROLD::H_Message(0x67), MOX::star[value].name); break;
+                case 2:
+                    if (destination == MOX::NUM_STARS) {
+                        strlcpy(text, HAROLD::H_Message(0x68), sizeof(text));
+                    } else {
+                        snprintf(text, sizeof(text), HAROLD::H_Message(value == 1 ? 0x69 : 0x6a), (int)value, star_name);
+                    }
+                    break;
+                case 3: snprintf(text, sizeof(text), HAROLD::H_Message(value == 1 ? 0x6b : 0x6c), (int)value); break;
+                case 4: strlcpy(text, HAROLD::H_Message(0x6d), sizeof(text)); break;
+                case 5: strlcpy(text, HAROLD::H_Message(0x6e), sizeof(text)); break;
+                case 6: snprintf(text, sizeof(text), HAROLD::H_Message(value == 1 ? 0x6f : 0x70), (int)value, star_name); break;
+                case 7:
+                    if (value == 0) {
+                        strlcpy(text, HAROLD::H_Message(0x71), sizeof(text));
+                    } else {
+                        snprintf(text, sizeof(text), HAROLD::H_Message(0xeb), (int)value);
+                    }
+                    break;
+                case 8: strlcpy(text, HAROLD::H_Message(0x73), sizeof(text)); break;
+                default: break;
+            }
+            return text::Normalize_Game_Text(text);
+        }
+
+        // The ETA line the fleet box shows while the pointer rests on this star with ships selected.
+        std::string Star_Eta_Text_(int16_t star_idx) {
+            if (!MOVEBOX::Moveable_Box_Selected(2) || MOX::eta_star_id != star_idx || MOX::fleet_ship_scanned != -1) {
+                return std::string();
+            }
+            return Fleet_Box_Status_Text_();
+        }
+
+        int16_t Visible_Fleet_Icon_Field_(int16_t icon_idx) {
+            int16_t end = (int16_t)(MOX::fleet_icon_buttons_added + MOX::first_fleet_movement_icon);
+            if (end > MOX::fleet_box.count) {
+                end = MOX::fleet_box.count;
+            }
+            if (icon_idx < MOX::first_fleet_movement_icon || icon_idx >= end) {
+                return 0;
+            }
+            int16_t field_idx = MOX::fleet_movement_icon[icon_idx].field;
+            return Is_Valid_Field_(field_idx) ? field_idx : 0;
+        }
+
+        // The game selects ships only while the left button is physically held over an icon: the
+        // main screen's draw paints the first icon's flipped state across each icon it passes
+        // (mainscr_main.cpp). This makes the same call for one icon. A ship scrolled out of the box
+        // has no field to paint, so it gets the rule Set_Painted_Fleet_Fields applies.
+        void Toggle_Fleet_Ship_(int16_t icon_idx) {
+            if (!MOVEBOX::Moveable_Box_Selected(2) || icon_idx < 0 || icon_idx >= MOX::fleet_box.count ||
+                !FLEETPOP::Can_Select_Fleet_Box_Ship(0)) {
+                return;
+            }
+            int16_t field_idx = Visible_Fleet_Icon_Field_(icon_idx);
+            if (field_idx > 0) {
+                MAINSCR::fltpop_field_selection_status = (uint8_t)(FLEETPOP::Icon_Selection_Status(field_idx) == 0);
+                MAINSCR::Set_Painted_Fleet_Fields(field_idx);
+                return;
+            }
+            s_ship_node* node = &MOX::ship_node[MOX::fleet_movement_icon[icon_idx].ship_node_idx];
+            if (MAINSCR::Ship_Can_Be_Selected(node->ship_idx)) {
+                node->selected = (int8_t)(node->selected == 0);
+            }
+        }
+
+        std::string Fleet_Ship_State_(int16_t icon_idx) {
+            if (!MOVEBOX::Moveable_Box_Selected(2) || icon_idx >= MOX::fleet_box.count) {
+                return std::string();
+            }
+            const s_ship_node* node = &MOX::ship_node[MOX::fleet_movement_icon[icon_idx].ship_node_idx];
+            return vocab::Get(node->selected != 0 ? vocab::VOCAB_STATE_SELECTED : vocab::VOCAB_STATE_NOT_SELECTED);
+        }
+
+        std::string Help_Label_Or_(int16_t field_idx, vocab::e_vocab_string fallback) {
+            std::string label = Help_Title_(Field_Help_Id_(&fields::fields[field_idx]));
+            return label.empty() ? std::string(vocab::Get(fallback)) : label;
+        }
+
+        bool Is_Fleet_Box_Field_(int16_t field_idx) {
+            const s_movable_box* box = &MOX::moveable_box[2];
+            const int16_t box_fields[] = {
+                box->close_btn, box->drag_field, box->window_field_id, MOX::fleet_movement_all_button,
+                MOX::fleet_box_scroll_up_button, MOX::fleet_box_scroll_dn_button, MOX::fleet_movement_bar_field,
+                MOX::fleet_box_outpost_button, MOX::fleet_box_colonize_button, MOX::fleet_box_engage_button,
+                MOX::fleet_box_transport_button, MOX::fleet_box_attack_button,
+            };
+            for (int16_t box_field : box_fields) {
+                if (box_field == field_idx) {
+                    return true;
+                }
+            }
+            for (int16_t i = 0; i < MOX::fleet_box.count; ++i) {
+                if (Visible_Fleet_Icon_Field_(i) == field_idx) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        void Build_Fleet_Stop_(graph::GraphBuilder* builder, s_build_context* context, const char* stop, int16_t stack) {
+            char prefix[48];
+            snprintf(prefix, sizeof(prefix), "%s/%d", stop, (int)stack);
+            std::string base = prefix;
+
+            graph::NodeVtable status;
+            status.Announcements.push_back(graph::NodeAnnouncement([]() { return Fleet_Box_Status_Text_(); }, true, Label));
+            builder->AddItem(graph::ControlId::Structural(base + "/status"), status);
+
+            bool own = FLEETPOP::Can_Select_Fleet_Box_Ship(0);
+            for (int16_t i = 0; i < MOX::fleet_box.count; ++i) {
+                int16_t ship_idx = HACCESS::Fleet_Movement_Ship_Id(i);
+                std::string key = base + "/ship/" + std::to_string(ship_idx);
+                graph::NodeVtable vtable = Info_Vtable_(std::vector<std::string>{ Fleet_Icon_Name_(i) });
+                int16_t field_idx = Visible_Fleet_Icon_Field_(i);
+                if (own) {
+                    vtable.Type = &toggle_type;
+                    vtable.Announcements.push_back(graph::NodeAnnouncement([i]() { return Fleet_Ship_State_(i); }, true, Value));
+                    vtable.OnActivate = [i]() { Toggle_Fleet_Ship_(i); };
+                    // A right click on the player's own ship opens its detailed view.
+                    if (field_idx > 0) {
+                        vtable.OnSecondary = [field_idx]() { navigator::Request_Field_Secondary(field_idx); };
+                    }
+                }
+                if (field_idx > 0) {
+                    context->node_fields[key] = field_idx;
+                    vtable.OnTooltip = [field_idx]() { Speak_Field_Help_(field_idx); };
+                }
+                builder->AddItem(graph::ControlId::Structural(key), vtable);
+            }
+
+            if (Is_Valid_Field_(MOX::fleet_movement_all_button)) {
+                Add_Field_Item_(builder, context, base + "/all", MOX::fleet_movement_all_button,
+                    Help_Label_Or_(MOX::fleet_movement_all_button, vocab::VOCAB_FLEET_ALL));
+            }
+            const struct {
+                int8_t active;
+                int16_t field;
+                const char* key;
+            } actions[] = {
+                { MOX::fleet_box.colonize_btn_active, MOX::fleet_box_colonize_button, "/colonize" },
+                { MOX::fleet_box.outpost_btn_active, MOX::fleet_box_outpost_button, "/outpost" },
+                { MOX::fleet_box.transport_btn_active, MOX::fleet_box_transport_button, "/transport" },
+                { MOX::fleet_box.engage_btn_active, MOX::fleet_box_engage_button, "/engage" },
+                { MOX::fleet_box.attack_btn_active, MOX::fleet_box_attack_button, "/attack" },
+            };
+            for (const auto& action : actions) {
+                if (action.active != 0 && Is_Valid_Field_(action.field)) {
+                    Add_Field_Item_(builder, context, base + action.key, action.field, Field_Label_(action.field));
+                }
+            }
+            if (Is_Valid_Field_(MOX::moveable_box[2].close_btn)) {
+                Add_Field_Item_(builder, context, base + "/close", MOX::moveable_box[2].close_btn, vocab::Get(vocab::VOCAB_CLOSE));
+            }
         }
 
         // ---- System display ----------------------------------------------------------------------
@@ -991,15 +1229,6 @@ namespace access::screens {
             return false;
         }
 
-        graph::NodeVtable Info_Vtable_(const std::vector<std::string>& lines) {
-            graph::NodeVtable vtable;
-            for (size_t i = 0; i < lines.size(); ++i) {
-                vtable.Announcements.push_back(graph::NodeAnnouncement::Static(lines[i]));
-                vtable.Announcements.back().Kind = i == 0 ? Label : Value;
-            }
-            return vtable;
-        }
-
         // Pressing a field the game reads as a click: a planet opens its colony screen when it is
         // the player's, a fleet opens its fleet box. A right click on a planet other than a gas
         // giant opens its colony potential (MAINSCR::Scan_System_Display_Fields).
@@ -1164,32 +1393,31 @@ namespace access::screens {
                 builder->PopContext();
             }
 
-            // Popups such as the fleet box add their fields to this loop's list.
+            int16_t fleet_stack = system >= 0 ? -1 : Open_Fleet_Stack_();
+            if (fleet_stack >= 0) {
+                builder->BeginStop(GALAXY_FLEET_STOP);
+                builder->PushContext(Fleet_Box_Label_(fleet_stack));
+                Build_Fleet_Stop_(builder, context, GALAXY_FLEET_STOP, fleet_stack);
+                builder->PopContext();
+            }
+
+            // Any other popup adds its fields to this loop's list.
             std::vector<int16_t> other;
             for (int16_t i = 1; i < fields::fields_count; ++i) {
                 const s_field* field = &fields::fields[i];
                 if (i == MOX::main_screen_grid_field || Is_Galaxy_Panel_Field_(i) || field->field_type == FIELD_TYPE_CIRCLE ||
-                    Is_Catch_All_(field) || !Field_Is_Listed_(i, true) || (system >= 0 && Is_System_Field_(i))) {
+                    Is_Catch_All_(field) || !Field_Is_Listed_(i, true) || (system >= 0 && Is_System_Field_(i)) ||
+                    (fleet_stack >= 0 && Is_Fleet_Box_Field_(i))) {
                     continue;
                 }
                 other.push_back(i);
             }
             if (!other.empty()) {
-                int16_t fleet_stack = Open_Fleet_Stack_();
-                const char* stop = "galaxy/other";
-                std::string label = vocab::Get(vocab::VOCAB_GALAXY_OTHER);
-                int16_t owner_id = -1;
-                if (fleet_stack >= 0) {
-                    stop = GALAXY_FLEET_STOP;
-                    label = Fleet_Box_Label_(fleet_stack);
-                    owner_id = fleet_stack;
-                }
-                builder->BeginStop(stop);
-                builder->PushContext(label);
+                builder->BeginStop("galaxy/other");
+                builder->PushContext(vocab::Get(vocab::VOCAB_GALAXY_OTHER));
                 for (int16_t i : other) {
                     char key[64];
-                    snprintf(key, sizeof(key), "%s/%d/%d/%d,%d", stop, (int)owner_id, (int)i,
-                        (int)fields::fields[i].x, (int)fields::fields[i].y);
+                    snprintf(key, sizeof(key), "galaxy/other/%d/%d,%d", (int)i, (int)fields::fields[i].x, (int)fields::fields[i].y);
                     Add_Field_Item_(builder, context, key, i, Field_Label_(i));
                 }
                 builder->PopContext();
