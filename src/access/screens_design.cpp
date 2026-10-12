@@ -118,6 +118,17 @@ namespace access::screens {
             return std::to_string(design->weapon_count[slot]) + " " + name;
         }
 
+        // DESIGN::Weapon_Mod_String draws the short forms, such as "Hv"; the full names say the same.
+        std::string Design_Mods_Text_(uint16_t mods) {
+            std::vector<std::string> names;
+            for (int16_t i = 0; i < WEAPON_MOD_COUNT; ++i) {
+                if ((mods >> i) & 1) {
+                    names.push_back(text::Normalize_Game_Text(TECHDATA::weapon_modifications[i].name));
+                }
+            }
+            return names.empty() ? H_Text(HESTR_064_NO_MODIFICATIONS) : Join_Values(names);
+        }
+
         // The rest of the row: space and cost are drawn per weapon, never less than 1.
         std::string Design_Weapon_Details_(int16_t slot) {
             const s_current_design* design = MOX::design;
@@ -128,13 +139,12 @@ namespace access::screens {
             int32_t count = design->weapon_count[slot];
             int32_t space = count != 0 ? design->weapon_space[slot] / count : 0;
             int32_t cost = count != 0 ? design->weapon_cost[slot] / count : 0;
-            DESIGN::Weapon_Mod_String((int16_t)design->weapon_specials[slot], buffer, sizeof(buffer));
             return Join_Values({
                 damage,
                 arc.empty() ? std::string() : vocab::Format(vocab::VOCAB_DESIGN_ARC, arc),
                 vocab::Format(vocab::VOCAB_DESIGN_SPACE_EACH, std::to_string(std::max<int32_t>(space, 1))),
                 vocab::Format(vocab::VOCAB_DESIGN_COST_EACH, std::to_string(std::max<int32_t>(cost, 1))),
-                text::Normalize_Game_Text(buffer),
+                Design_Mods_Text_(design->weapon_specials[slot]),
             });
         }
 
