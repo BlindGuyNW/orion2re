@@ -18,7 +18,7 @@ Copy the x64 or x86 `Tolk.dll` that matches the build, together with its screen 
 | Backspace | Right-click the focused control, where the game gives it a right-click action. |
 | Space | Read the focused control's help text. |
 | Ctrl+L | Repeat the screen name and focused control. |
-| Ctrl+R | Repeat the last spoken line. |
+| Ctrl+R | Repeat the last spoken line, or read the whole text while typing into a field. |
 | Ctrl+Shift+A | Turn the layer off or on. |
 
 Escape and every other key keep their game meaning. Numeric keypad keys are never claimed, because screen readers use them for their own commands.
@@ -53,6 +53,8 @@ The layer touches the game in these places:
 - `MOX2::thunk_main2()` initializes and shuts down the layer on the game thread.
 
 Keys are claimed only while a cursor is seated, no continuous text field is active, and the game thread has polled fields within the last 300 milliseconds. Text-entry loops, animations, and loads that do not poll fields therefore receive their keys normally.
+
+While a continuous text field is active, the navigator reads it on every tick instead. The game only appends at the end and deletes from the end, so comparing `fields::continuous_string` (less the trailing underscore its cursor blinks with) with the previous tick tells what each keystroke did: it speaks the character typed, adding "full" at the length limit, the character Backspace deleted, or the whole text when the first keystroke replaces a popup's default. Editing starts with the current text, and ends with whether the text changed, since Enter keeps the text and Escape restores it and both leave it in `continuous_string`. The end is checked before the screen is matched, so it is heard ahead of the screen editing returns to, and the start after, so a popup that opens already editing is named first. `namestar::Input_Box_Popup`, which names stars, publishes its prompt in `namestar::shown_prompt`; its recipe speaks the prompt as the screen's name and lists no controls.
 
 ## Recipes
 

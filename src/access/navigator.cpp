@@ -6,6 +6,7 @@
 #include "access/graph/KeyGraph.hpp"
 #include "access/screens.h"
 #include "access/speech.h"
+#include "access/text.h"
 #include "access/vocab.h"
 
 #include <exception>
@@ -242,6 +243,93 @@ namespace access::navigator {
             Say_(name.empty() ? text : name + ", " + text, true);
         }
 
+        // The text field being typed into, as last spoken. The game only appends and deletes at the
+        // end, so comparing the text tick to tick is enough to tell what each keystroke did.
+        bool editing = false;
+        std::string edit_start_text;
+        std::string edit_text;
+
+        const s_field_cont_input* Typed_Field_() {
+            if (fields::input_field_active == 0) {
+                return nullptr;
+            }
+            int16_t field_idx = fields::active_input_field_number;
+            if (field_idx <= 0 || field_idx >= fields::fields_count ||
+                fields::fields[field_idx].field_type != FIELD_TYPE_CONTINUOUS_INPUT) {
+                return nullptr;
+            }
+            return fields::Field_Data_Continuous_Input(&fields::fields[field_idx]);
+        }
+
+        // The game blinks its cursor by writing an underscore after the text, and refuses to type one.
+        std::string Typed_Text_() {
+            std::string text(fields::continuous_string, strnlen(fields::continuous_string, sizeof(fields::continuous_string)));
+            if (!text.empty() && text.back() == '_') {
+                text.pop_back();
+            }
+            return text;
+        }
+
+        std::string Spoken_Text_(const std::string& text) {
+            std::string spoken = text::Normalize_Game_Text(text.c_str());
+            return spoken.empty() ? std::string(vocab::Get(vocab::VOCAB_TEXT_BLANK)) : spoken;
+        }
+
+        std::string Spoken_Typed_(const std::string& typed) {
+            return typed == " " ? std::string(vocab::Get(vocab::VOCAB_TEXT_SPACE)) : Spoken_Text_(typed);
+        }
+
+        // Runs before the screen is matched, so the result is heard ahead of the screen it returns to.
+        void Text_Entry_Ended_() {
+            if (!editing || Typed_Field_() != nullptr) {
+                return;
+            }
+            editing = false;
+            // Enter keeps the typed text and Escape restores the original; both leave it here.
+            std::string text = Typed_Text_();
+            Say_(vocab::Format(text == edit_start_text ? vocab::VOCAB_TEXT_UNCHANGED : vocab::VOCAB_TEXT_SAVED,
+                Spoken_Text_(text)), true);
+        }
+
+        // Runs after the screen is matched, so a popup that opens already editing is named first.
+        void Text_Entry_Changed_() {
+            const s_field_cont_input* field = Typed_Field_();
+            if (field == nullptr) {
+                return;
+            }
+            std::string text = Typed_Text_();
+            if (!editing) {
+                editing = true;
+                edit_start_text = text;
+                edit_text = text;
+                std::string opening = vocab::Format(vocab::VOCAB_TEXT_EDITING, Spoken_Text_(text));
+                if (fields::active_input_field_first != 0 && !text.empty()) {
+                    opening += ", " + std::string(vocab::Get(vocab::VOCAB_TEXT_REPLACES));
+                }
+                Say_(opening, false);
+                return;
+            }
+            if (text == edit_text) {
+                return;
+            }
+            std::string spoken;
+            if (text.size() > edit_text.size() && text.compare(0, edit_text.size(), edit_text) == 0) {
+                spoken = Spoken_Typed_(text.substr(edit_text.size()));
+                if ((int32_t)text.size() >= field->max_length - 1) {
+                    spoken += ", " + std::string(vocab::Get(vocab::VOCAB_TEXT_FULL));
+                }
+            } else if (text.size() < edit_text.size() && edit_text.compare(0, text.size(), text) == 0) {
+                std::string removed = edit_text.substr(text.size());
+                spoken = text.empty() && removed.size() > 1 ? std::string(vocab::Get(vocab::VOCAB_TEXT_CLEARED))
+                                                            : vocab::Format(vocab::VOCAB_TEXT_DELETED, Spoken_Typed_(removed));
+            } else {
+                // The first keystroke into a popup's default text replaces all of it.
+                spoken = Spoken_Text_(text);
+            }
+            edit_text = text;
+            Say_(spoken, true);
+        }
+
         void Dispatch_(SDL_Keycode key, SDL_Keymod modifiers) {
             bool shift = (modifiers & SDL_KMOD_SHIFT) != 0;
             bool ctrl = (modifiers & SDL_KMOD_CTRL) != 0;
@@ -452,12 +540,14 @@ namespace access::navigator {
 
         bool is_enabled = SDL_GetAtomicInt(&enabled) != 0;
         if (is_enabled) {
+            Text_Entry_Ended_();
             Sync_();
             if (attached != nullptr && attached->Poll != nullptr) {
                 bool just_attached = poll_just_attached;
                 poll_just_attached = false;
                 Guarded_("poll", [just_attached]() { attached->Poll(just_attached); });
             }
+            Text_Entry_Changed_();
         }
 
         // A text field being typed into beats every other arbitration decision (spec section 8).
@@ -483,7 +573,11 @@ namespace access::navigator {
                 continue;
             }
             if (Is_Repeat_Key_(event.key, event.modifiers)) {
-                speech::Repeat_Last();
+                if (editing) {
+                    Say_(Spoken_Text_(edit_text), true);
+                } else {
+                    speech::Repeat_Last();
+                }
                 continue;
             }
             if (key_graph != nullptr && !typing) {

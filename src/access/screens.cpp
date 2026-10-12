@@ -1690,6 +1690,25 @@ namespace access::screens {
             builder->SetStart(graph::ControlId::Structural("confirm/yes"));
         }
 
+        // ---- Input box ---------------------------------------------------------------------------
+
+        // namestar::Input_Box_Popup opens already typing into its one field, so every key goes to the
+        // game and nothing can be navigated; the navigator's text-entry echo reads the field.
+        bool Input_Box_Is_Active_() {
+            return namestar::shown_prompt != nullptr;
+        }
+
+        std::string Input_Box_Instance_Key_() {
+            return std::string("input_box/") + namestar::shown_prompt;
+        }
+
+        std::string Input_Box_Name_() {
+            return text::Normalize_Game_Text(namestar::shown_prompt);
+        }
+
+        void Input_Box_Build_(graph::GraphBuilder*, s_build_context*) {
+        }
+
         // ---- Turn summary ------------------------------------------------------------------------
 
         // TURNSUM::Turn_Summary_Popup lists the turn's messages a page at a time and publishes its
@@ -3272,6 +3291,7 @@ namespace access::screens {
         const s_screen_recipe recipes[] = {
             { "text_box", Text_Box_Is_Active_, Text_Box_Instance_Key_, Text_Box_Build_, Text_Box_Name_ },
             { "confirm", Confirmation_Is_Active_, Confirmation_Instance_Key_, Confirmation_Build_, Confirmation_Name_ },
+            { "input_box", Input_Box_Is_Active_, Input_Box_Instance_Key_, Input_Box_Build_, Input_Box_Name_ },
             { "science_room", Science_Room_Is_Active_, Science_Room_Instance_Key_, Science_Room_Build_, Science_Room_Name_,
                 Science_Room_Poll_ },
             { "officer_level", Officer_Level_Is_Active_, Officer_Level_Instance_Key_, Officer_Level_Build_, Officer_Level_Name_ },

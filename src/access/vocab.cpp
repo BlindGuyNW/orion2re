@@ -156,6 +156,15 @@ namespace access::vocab {
             "Choose an item to build repeatedly",
             "Cancelled",
             "Cancel",
+            "Editing, %1",
+            "typing replaces it",
+            "%1, saved",
+            "Unchanged, %1",
+            "Deleted %1",
+            "Cleared",
+            "full",
+            "blank",
+            "space",
         };
 
         static_assert(sizeof(english_strings) / sizeof(english_strings[0]) == VOCAB_COUNT, "one English string per vocabulary id");

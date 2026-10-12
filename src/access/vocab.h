@@ -159,6 +159,16 @@ namespace access::vocab {
         VOCAB_BUILD_CANCELLED,
         VOCAB_CANCEL,
 
+        VOCAB_TEXT_EDITING,
+        VOCAB_TEXT_REPLACES,
+        VOCAB_TEXT_SAVED,
+        VOCAB_TEXT_UNCHANGED,
+        VOCAB_TEXT_DELETED,
+        VOCAB_TEXT_CLEARED,
+        VOCAB_TEXT_FULL,
+        VOCAB_TEXT_BLANK,
+        VOCAB_TEXT_SPACE,
+
         VOCAB_COUNT
     };
 
