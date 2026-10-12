@@ -27,7 +27,7 @@ Escape and every other key keep their game meaning. Numeric keypad keys are neve
 
 - `src/access/graph/` is the kernel, lifted unchanged from the OpenXcom port apart from its namespace. It is a self-contained component in upstream style and throws `std::logic_error` on builder misuse; `navigator.cpp` catches those at the single point where recipes are built. Its conformance suite is `test_access_graph`.
 - `navigator.cpp` owns screen matching, key dispatch, the announce-once differ, and the activation handoff.
-- `screens.cpp` holds the screen recipes and the control-type registry.
+- `screens.cpp` lists the screen recipes in match order. Each recipe lives in the file for its screen or family of screens (`screens_galaxy.cpp`, `screens_colony.cpp`, `screens_build.cpp`, `screens_design.cpp`, `screens_popups.cpp`, `screens_research.cpp`, `screens_menus.cpp`, and `screens_generic.cpp` for the field list any screen falls back to). `screens_common.h` shares the control-type registry and the field and readout helpers between them.
 - `help_text.cpp` reads titles and bodies from the current language's help LBX for the screen's active help list.
 - `text.cpp` removes inline text commands and decodes CP850; `vocab.cpp` holds every string the layer authors.
 - `speech.cpp` loads Tolk with `SDL_LoadObject`, chunks long text, and writes the transcript.
