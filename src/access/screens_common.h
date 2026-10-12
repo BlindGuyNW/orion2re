@@ -85,6 +85,7 @@ namespace access::screens {
     extern const s_screen_recipe landing_recipe;
     extern const s_screen_recipe design_generic_picker_recipe;
     extern const s_screen_recipe design_specials_picker_recipe;
+    extern const s_screen_recipe design_weapons_picker_recipe;
     extern const s_screen_recipe design_recipe;
     extern const s_screen_recipe build_recipe;
     extern const s_screen_recipe colony_recipe;

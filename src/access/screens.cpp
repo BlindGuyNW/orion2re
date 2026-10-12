@@ -22,6 +22,7 @@ namespace access::screens {
             landing_recipe,
             design_generic_picker_recipe,
             design_specials_picker_recipe,
+            design_weapons_picker_recipe,
             design_recipe,
             build_recipe,
             colony_recipe,
