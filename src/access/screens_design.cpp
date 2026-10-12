@@ -315,21 +315,43 @@ namespace access::screens {
             builder->AddItem(graph::ControlId::Structural(key), vtable);
         }
 
-        void Add_Design_Info_(graph::GraphBuilder* builder, const std::string& key, const std::string& text) {
-            builder->AddItem(graph::ControlId::Structural(key), Info_Vtable(std::vector<std::string>{ text }));
+        // The areas of EVANHELP::static_design_screen_help_list, whose records a right-click opens.
+        enum e_design_help_area {
+            DESIGN_HELP_DRIVES_ARMOR = 1,
+            DESIGN_HELP_SHIELDS_COMPUTERS = 2,
+            DESIGN_HELP_PICTURE = 4,
+            DESIGN_HELP_HULL_SPACE = 5,
+            DESIGN_HELP_WEAPONS = 6,
+            DESIGN_HELP_SPECIAL_SYSTEMS = 7,
+            DESIGN_HELP_BUILD = 10,
+            DESIGN_HELP_COST = 11,
+            DESIGN_HELP_SPACE_AVAILABLE = 12,
+        };
+
+        void Set_Design_Help_(graph::NodeVtable* vtable, e_design_help_area area) {
+            int16_t help_id = EVANHELP::static_design_screen_help_list[area].help_id;
+            vtable->OnTooltip = [help_id]() { Speak_Help_Record(help_id); };
+        }
+
+        void Add_Design_Info_(graph::GraphBuilder* builder, const std::string& key, const std::string& text, e_design_help_area area) {
+            graph::NodeVtable vtable = Info_Vtable(std::vector<std::string>{ text });
+            Set_Design_Help_(&vtable, area);
+            builder->AddItem(graph::ControlId::Structural(key), vtable);
         }
 
         // A fitted weapon or special system: Enter opens its picker, and Backspace shows its
-        // description, as a right-click does.
-        graph::NodeVtable Design_Row_Vtable_(int16_t field_idx, const std::string& label, const std::string& details) {
+        // description, as a right-click does. Space speaks that description: Set_Design_Screen_Help_List
+        // starts the area's help box below the fitted rows, so a right-click on one reaches
+        // Check_Weapon_Fields or Check_Special_System_Fields, which open the item's own record.
+        graph::NodeVtable Design_Row_Vtable_(int16_t field_idx, const std::string& label, const std::string& details, int16_t help_id) {
             graph::NodeVtable vtable = Info_Vtable(std::vector<std::string>{ label, details });
             vtable.Type = &button_type;
             vtable.StateText = []() { return std::string(); };
             if (Is_Valid_Field(field_idx)) {
                 vtable.OnActivate = [field_idx]() { Design_Press_(field_idx, false); };
                 vtable.OnSecondary = [field_idx]() { navigator::Request_Field_Secondary(field_idx); };
-                vtable.OnTooltip = [field_idx]() { Speak_Field_Help(field_idx); };
             }
+            vtable.OnTooltip = [help_id]() { Speak_Help_Record(help_id); };
             return vtable;
         }
 
@@ -357,7 +379,7 @@ namespace access::screens {
             builder->PopContext();
             std::string picture = Design_Picture_Text_();
             if (!picture.empty()) {
-                Add_Design_Info_(builder, "design/picture", picture);
+                Add_Design_Info_(builder, "design/picture", picture, DESIGN_HELP_PICTURE);
             }
             if (Is_Valid_Field(MOX::ship_icon_lf_button)) {
                 Add_Design_Field_(builder, context, "design/picture/previous",
@@ -375,12 +397,12 @@ namespace access::screens {
                 text::Normalize_Game_Text(TECHDATA::drives[design->ftl_type].name),
                 Design_Stat_(HESTR_17E_D_PARSECS_TURN, TECHDATA::drives[design->ftl_type].warp_speed),
                 Design_Stat_(HESTR_054_D_COMBAT_SPEED, DESIGN::Current_Design_Combat_Speed(MOX::design)),
-            }));
+            }), DESIGN_HELP_DRIVES_ARMOR);
             Add_Design_Info_(builder, "design/armor", Join_Values({
                 text::Normalize_Game_Text(TECHDATA::armor[design->armor_type].name),
                 Design_Stat_(HESTR_055_D_STRUCTURE_POINTS, DESIGN::Current_Design_Structural_Points()),
                 Design_Stat_(HESTR_056_D_ARMOR_POINTS, DESIGN::Current_Design_Armor_Absorption()),
-            }));
+            }), DESIGN_HELP_DRIVES_ARMOR);
             // Enter on the shield or computer opens its picker, or a message saying why it can't.
             const struct {
                 int16_t field_idx;
@@ -394,7 +416,7 @@ namespace access::screens {
             };
             for (const auto& system : systems) {
                 if (!Is_Valid_Field(system.field_idx)) {
-                    Add_Design_Info_(builder, system.key, system.label + ", " + system.details);
+                    Add_Design_Info_(builder, system.key, system.label + ", " + system.details, DESIGN_HELP_SHIELDS_COMPUTERS);
                     continue;
                 }
                 graph::NodeVtable vtable = Design_Field_Vtable_(system.field_idx, system.label, false);
@@ -419,16 +441,20 @@ namespace access::screens {
                     continue;
                 }
                 any = true;
-                graph::NodeVtable vtable = Design_Row_Vtable_(field_idx, Design_Weapon_Name_(slot), Design_Weapon_Details_(slot));
+                graph::NodeVtable vtable = Design_Row_Vtable_(field_idx, Design_Weapon_Name_(slot), Design_Weapon_Details_(slot),
+                    (int16_t)TECHDATA::weapons[design->weapon_type[slot]].tech_app_id);
                 vtable.OnAdjust = [slot](int sign, bool) { Design_Adjust_Weapon_(slot, sign); };
                 Add_Design_Field_(builder, context, "design/weapon/" + std::to_string(slot), vtable, field_idx);
             }
             if (add_field >= 0) {
                 any = true;
-                Add_Design_Field_(builder, context, "design/weapon/add", Design_Field_Vtable_(add_field, Design_Add_Text_(true), false), add_field);
+                // The empty rows lie inside the area's help box, so a right-click there opens its record.
+                graph::NodeVtable vtable = Design_Field_Vtable_(add_field, Design_Add_Text_(true), false);
+                Set_Design_Help_(&vtable, DESIGN_HELP_WEAPONS);
+                Add_Design_Field_(builder, context, "design/weapon/add", vtable, add_field);
             }
             if (!any) {
-                Add_Design_Info_(builder, "design/weapon/none", vocab::Get(vocab::VOCAB_DESIGN_NONE));
+                Add_Design_Info_(builder, "design/weapon/none", vocab::Get(vocab::VOCAB_DESIGN_NONE), DESIGN_HELP_WEAPONS);
             }
         }
 
@@ -448,27 +474,31 @@ namespace access::screens {
                 any = true;
                 const char* description = MOX::special_desc_string[device];
                 graph::NodeVtable vtable = Design_Row_Vtable_(field_idx, text::Normalize_Game_Text(TECHDATA::specials[device].name),
-                    description != nullptr ? text::Normalize_Game_Text(description) : std::string());
+                    description != nullptr ? text::Normalize_Game_Text(description) : std::string(),
+                    (int16_t)TECHDATA::specials[device].tech_app_id);
                 Add_Design_Field_(builder, context, "design/special/" + std::to_string(slot), vtable, field_idx);
             }
             if (add_field >= 0) {
                 any = true;
-                Add_Design_Field_(builder, context, "design/special/add", Design_Field_Vtable_(add_field, Design_Add_Text_(false), false), add_field);
+                graph::NodeVtable vtable = Design_Field_Vtable_(add_field, Design_Add_Text_(false), false);
+                Set_Design_Help_(&vtable, DESIGN_HELP_SPECIAL_SYSTEMS);
+                Add_Design_Field_(builder, context, "design/special/add", vtable, add_field);
             }
             if (!any) {
-                Add_Design_Info_(builder, "design/special/none", vocab::Get(vocab::VOCAB_DESIGN_NONE));
+                Add_Design_Info_(builder, "design/special/none", vocab::Get(vocab::VOCAB_DESIGN_NONE), DESIGN_HELP_SPECIAL_SYSTEMS);
             }
         }
 
         void Design_Totals_Stop_(graph::GraphBuilder* builder) {
             s_design_bonuses bonuses = Design_Bonuses_();
-            Add_Design_Info_(builder, "design/cost", Design_Cost_Text_());
-            Add_Design_Info_(builder, "design/space", Design_Space_Text_());
-            Add_Design_Info_(builder, "design/hull_space", vocab::Format(vocab::VOCAB_DESIGN_HULL_SPACE, std::to_string(MOX::design->hull_space)));
+            Add_Design_Info_(builder, "design/cost", Design_Cost_Text_(), DESIGN_HELP_COST);
+            Add_Design_Info_(builder, "design/space", Design_Space_Text_(), DESIGN_HELP_SPACE_AVAILABLE);
+            Add_Design_Info_(builder, "design/hull_space", vocab::Format(vocab::VOCAB_DESIGN_HULL_SPACE, std::to_string(MOX::design->hull_space)),
+                DESIGN_HELP_HULL_SPACE);
             Add_Design_Info_(builder, "design/beam_defense", Design_Labelled_(HESTR_05C_BEAM_DEFENSE,
-                (bonuses.beam_defense >= 0 ? "+" : "") + std::to_string(bonuses.beam_defense)));
+                (bonuses.beam_defense >= 0 ? "+" : "") + std::to_string(bonuses.beam_defense)), DESIGN_HELP_SHIELDS_COMPUTERS);
             Add_Design_Info_(builder, "design/missile_evasion", Design_Labelled_(HESTR_05D_MISSILE_EVASION,
-                std::to_string(bonuses.missile_evasion) + "%"));
+                std::to_string(bonuses.missile_evasion) + "%"), DESIGN_HELP_SHIELDS_COMPUTERS);
         }
 
         void Design_Controls_Stop_(graph::GraphBuilder* builder, s_build_context* context) {
@@ -480,6 +510,7 @@ namespace access::screens {
                 vtable.Type = &button_type;
                 vtable.Announcements.push_back(graph::NodeAnnouncement::Static(vocab::Get(vocab::VOCAB_STATE_UNAVAILABLE)));
                 vtable.Announcements.back().Kind = Enabled;
+                Set_Design_Help_(&vtable, DESIGN_HELP_BUILD);
                 builder->AddItem(graph::ControlId::Structural("design/build"), vtable);
             }
             if (Is_Valid_Field(MOX::design_clear_button)) {
