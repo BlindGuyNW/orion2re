@@ -543,6 +543,10 @@ namespace access::navigator {
         pending_activation_secondary = pending_activation == field_idx;
     }
 
+    bool Field_Activation_Pending() {
+        return pending_activation > 0;
+    }
+
     void Request_Focus_Stop(const char* stop_key) {
         pending_focus_stop = stop_key != nullptr ? stop_key : "";
         pending_focus_passes = 0;

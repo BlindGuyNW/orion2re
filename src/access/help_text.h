@@ -23,4 +23,8 @@ namespace access::help {
     // updates, normalized for speech and cached.
     bool Read_Text_Message(const char* lbx_name, int16_t message_index, std::string* text);
 
+    // Reads one text record of a records-type LBX entry, such as the setting descriptions
+    // COLBLDG::Get_Setting_Description_String reads, normalized for speech and cached.
+    bool Read_Text_Record(const char* lbx_name, int16_t entry, int16_t record_idx, std::string* text);
+
 } // namespace access::help

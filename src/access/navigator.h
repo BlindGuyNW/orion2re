@@ -31,6 +31,8 @@ namespace access::navigator {
     // The right-click equivalent, which the game reads as the negated field index.
     void Request_Field_Secondary(int16_t field_idx);
     bool Take_Field_Activation(int16_t* field_idx, bool* secondary);
+    // True while a requested activation waits for Get_Input, which skips it during an input delay.
+    bool Field_Activation_Pending();
 
     // Game thread. Deferred programmatic focus (spec 7.3): on the differ's next pass, focus lands
     // in the Tab-stop and the differ announces it. A stop not built yet is retried for a short

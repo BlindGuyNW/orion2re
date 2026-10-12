@@ -119,4 +119,19 @@ namespace access::help {
         return !text->empty();
     }
 
+    bool Read_Text_Record(const char* lbx_name, int16_t entry, int16_t record_idx, std::string* text) {
+        std::string key = std::string(lbx_name) + "#" + std::to_string(entry) + "/" + std::to_string(record_idx);
+        auto it = message_cache.find(key);
+        if (it == message_cache.end()) {
+            char buffer[1024] = {};
+            std::string found;
+            if (Load_Lbx_Record_(lbx_name, entry, record_idx, buffer, (uint16_t)(sizeof(buffer) - 1), false)) {
+                found = text::Normalize_Game_Text(buffer);
+            }
+            it = message_cache.emplace(key, found).first;
+        }
+        *text = it->second;
+        return !text->empty();
+    }
+
 } // namespace access::help

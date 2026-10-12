@@ -139,6 +139,22 @@ namespace access::vocab {
             "Previous colony",
             "Next colony",
             "Return",
+
+            "Queue",
+            "Buildings",
+            "Ships and specialists",
+            "Queue empty",
+            "Queued",
+            "Repeating",
+            "Held",
+            "Added %1, position %2",
+            "Removed %1",
+            "%1 moved to position %2",
+            "Holding %1. Enter on another slot moves it there, Enter on it again removes it, and new items go in ahead of it",
+            "Put back %1",
+            "Choose a ship design to modify",
+            "Choose an item to build repeatedly",
+            "Cancelled",
         };
 
         static_assert(sizeof(english_strings) / sizeof(english_strings[0]) == VOCAB_COUNT, "one English string per vocabulary id");
