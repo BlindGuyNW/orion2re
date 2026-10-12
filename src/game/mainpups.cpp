@@ -9,6 +9,8 @@ namespace MAINPUPS {
 
     int16_t g_officer = -1;
     uint8_t officer_popup_awaiting_input;
+    uint8_t level_popup_awaiting_input;
+    uint8_t selection_popup_awaiting_input;
 
     int16_t officer_gains_level_state;
 
@@ -803,7 +805,9 @@ namespace MAINPUPS {
         do {
             timer::Release_Time(2);
             timer::Mark_Time();
+            selection_popup_awaiting_input = 1;
             input = fields::Get_Input();
+            selection_popup_awaiting_input = 0;
             scan_input = fields::Scan_Input();
             result = Evaluate_Selection_Input(&input, &scan_input, &done);
             Draw_Selection_Popup();
@@ -1111,7 +1115,9 @@ namespace MAINPUPS {
         RUSS::Mox_Sync_Update();
 
         do {
+            level_popup_awaiting_input = 1;
             input = fields::Get_Input();
+            level_popup_awaiting_input = 0;
             fields::Scan_Input();
             Draw_Officer_Gains_Level_Popup();
             RUSS::Mox_Sync_Update();

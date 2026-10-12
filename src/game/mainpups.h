@@ -39,6 +39,11 @@ namespace MAINPUPS {
     extern int16_t g_officer;
     // Set while Random_New_Officer_Popup waits for input, for the screen reader layer.
     extern uint8_t officer_popup_awaiting_input;
+    // Set while Officer_Gains_Level_Popup waits for input, for the screen reader layer.
+    extern uint8_t level_popup_awaiting_input;
+    // Set while New_Colony_Selection_Popup waits for input, for the screen reader layer; the
+    // message and marooned officer popups it opens leave it clear.
+    extern uint8_t selection_popup_awaiting_input;
 
     extern int16_t officer_gains_level_state;
 
