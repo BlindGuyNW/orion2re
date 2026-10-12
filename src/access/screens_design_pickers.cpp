@@ -2,6 +2,7 @@
 
 #include "access/screens_common.h"
 
+#include "access/help_text.h"
 #include "access/navigator.h"
 #include "access/speech.h"
 #include "access/text.h"
@@ -32,11 +33,16 @@ namespace access::screens {
             return 0;
         }
 
-        void Add_Picker_Cancel_(graph::GraphBuilder* builder, s_build_context* context, const char* key) {
+        // help_id is the record the picker opens when Cancel is right-clicked.
+        void Add_Picker_Cancel_(graph::GraphBuilder* builder, s_build_context* context, const char* key, int16_t help_id) {
             int16_t field_idx = Picker_Cancel_Field_();
-            if (field_idx > 0) {
-                Add_Field_Item(builder, context, key, field_idx, vocab::Get(vocab::VOCAB_CANCEL));
+            if (field_idx <= 0) {
+                return;
             }
+            graph::NodeVtable vtable = Field_Vtable(field_idx, vocab::Get(vocab::VOCAB_CANCEL));
+            vtable.OnTooltip = [help_id]() { Speak_Help_Record(help_id); };
+            context->node_fields[key] = field_idx;
+            builder->AddItem(graph::ControlId::Structural(key), vtable);
         }
 
         std::string Column_(int16_t header_id, const std::string& value) {
@@ -51,6 +57,12 @@ namespace access::screens {
             vtable.OnActivate = activate;
             vtable.OnSecondary = secondary;
             return vtable;
+        }
+
+        // Space speaks the description the game's right-click opens in a text box: the help record
+        // of the item's technology application, or the game's own record for the empty choice.
+        void Set_Picker_Tooltip_(graph::NodeVtable* vtable, int16_t help_id) {
+            vtable->OnTooltip = [help_id]() { Speak_Help_Record(help_id); };
         }
 
         void Add_Picker_State_(graph::NodeVtable* vtable, vocab::e_vocab_string state, const char* kind) {
@@ -204,6 +216,12 @@ namespace access::screens {
                 graph::NodeVtable vtable = Picker_Row_Vtable_(label, shield ? Shield_Row_Details_(item) : Computer_Row_Details_(item),
                     [field_idx]() { navigator::Request_Field_Activation(field_idx); },
                     [field_idx]() { navigator::Request_Field_Secondary(field_idx); });
+                // Draw_Generic_Replacement_Box_Help's records.
+                if (item == 0) {
+                    Set_Picker_Tooltip_(&vtable, shield ? 0x2B4 : 0x2B5);
+                } else {
+                    Set_Picker_Tooltip_(&vtable, (int16_t)(shield ? TECHDATA::shields[item].tech_app_id : TECHDATA::computers[item].tech_app_id));
+                }
                 if (DESBOX::field_item_chosen == row) {
                     Add_Picker_State_(&vtable, vocab::VOCAB_STATE_SELECTED, Selected);
                 }
@@ -211,7 +229,7 @@ namespace access::screens {
                 context->node_fields[key] = field_idx;
                 builder->AddItem(graph::ControlId::Structural(key), vtable);
             }
-            Add_Picker_Cancel_(builder, context, "design_picker/cancel");
+            Add_Picker_Cancel_(builder, context, "design_picker/cancel", shield ? 0x2AB : 0x2AE);
         }
 
         // ---- Special systems picker ------------------------------------------------------------------
@@ -279,6 +297,7 @@ namespace access::screens {
                 graph::NodeVtable vtable = Picker_Row_Vtable_(label, Special_Row_Details_(item_idx),
                     [item_idx]() { Activate_Picker_Row_(item_idx, false); },
                     [item_idx]() { Activate_Picker_Row_(item_idx, true); });
+                Set_Picker_Tooltip_(&vtable, item_idx == 0 ? 691 : (int16_t)TECHDATA::specials[special].tech_app_id);
                 if (special == fitted_here) {
                     Add_Picker_State_(&vtable, vocab::VOCAB_STATE_SELECTED, Selected);
                 } else if (MOX::design_choice_item_selected[item_idx] != 0) {
@@ -294,7 +313,7 @@ namespace access::screens {
                 }
                 builder->AddItem(graph::ControlId::Structural(key), vtable);
             }
-            Add_Picker_Cancel_(builder, context, "design_specials/cancel");
+            Add_Picker_Cancel_(builder, context, "design_specials/cancel", 689);
         }
 
         // ---- Weapon picker ---------------------------------------------------------------------------
@@ -415,6 +434,19 @@ namespace access::screens {
             return Is_Valid_Field(*filter.field) ? Help_Label_Or(*filter.field, filter.fallback) : std::string(vocab::Get(filter.fallback));
         }
 
+        // Print_Weapon_Mod_Help_Description: the general modifications paragraph, then the one for
+        // this modification, under its title.
+        void Speak_Mod_Help_(int16_t mod) {
+            help::s_help_text general;
+            help::s_help_text specific;
+            if (!help::Read_Help_Text((int16_t)(400 + mod), &specific)) {
+                speech::Say(vocab::Get(vocab::VOCAB_NO_TOOLTIP), true);
+                return;
+            }
+            std::string body = help::Read_Help_Text(400, &general) ? general.body + " " + specific.body : specific.body;
+            speech::Say(specific.title + ". " + body, true);
+        }
+
         std::string On_Off_(bool on) {
             return vocab::Get(on ? vocab::VOCAB_STATE_ON : vocab::VOCAB_STATE_OFF);
         }
@@ -511,6 +543,7 @@ namespace access::screens {
             vtable.Type = type;
             vtable.StateText = []() { return std::string(); };
             vtable.OnActivate = [field_idx]() { Weapons_Press_(field_idx); };
+            vtable.OnTooltip = [field_idx]() { Speak_Field_Help(field_idx); };
             return vtable;
         }
 
@@ -535,6 +568,7 @@ namespace access::screens {
                     [row]() { Activate_Weapon_Row_(row); },
                     [row]() { Activate_Picker_Row_(row, true); });
                 vtable.StateText = []() { return std::string(); };
+                Set_Picker_Tooltip_(&vtable, weapon == 0 ? 0x2B2 : (int16_t)TECHDATA::weapons[weapon].tech_app_id);
                 if (DESBOX::field_item_chosen == row && row > 0) {
                     Add_Picker_State_(&vtable, vocab::VOCAB_STATE_SELECTED, Selected);
                 }
@@ -596,6 +630,7 @@ namespace access::screens {
                 vtable.Announcements.push_back(graph::NodeAnnouncement::Static(On_Off_(MOX::weapon_mod_field_status[mod] == 1)));
                 vtable.Announcements.back().Kind = Value;
                 vtable.OnSecondary = [field_idx]() { navigator::Request_Field_Secondary(field_idx); };
+                vtable.OnTooltip = [mod]() { Speak_Mod_Help_(mod); };
                 Add_Weapons_Node_(builder, context, "design_weapons/mod/" + std::to_string(mod), vtable, field_idx);
             }
             if (any) {
@@ -629,7 +664,7 @@ namespace access::screens {
                 }
                 Add_Weapons_Node_(builder, context, "design_weapons/accept", vtable, accept);
             }
-            Add_Picker_Cancel_(builder, context, "design_weapons/cancel");
+            Add_Picker_Cancel_(builder, context, "design_weapons/cancel", 0x2B0);
         }
 
         void Weapons_Picker_Build_(graph::GraphBuilder* builder, s_build_context* context) {
