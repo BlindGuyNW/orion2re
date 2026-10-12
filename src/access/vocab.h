@@ -157,6 +157,7 @@ namespace access::vocab {
         VOCAB_BUILD_CHOOSE_DESIGN,
         VOCAB_BUILD_CHOOSE_REPEAT,
         VOCAB_BUILD_CANCELLED,
+        VOCAB_CANCEL,
 
         VOCAB_COUNT
     };

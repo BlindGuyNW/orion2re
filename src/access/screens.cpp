@@ -1300,7 +1300,8 @@ namespace access::screens {
             return false;
         }
 
-        void Build_System_Stop_(graph::GraphBuilder* builder, s_build_context* context, const char* stop, int16_t star_idx) {
+        void Build_System_Stop_(graph::GraphBuilder* builder, s_build_context* context, const char* stop, int16_t star_idx,
+            int16_t close_field, const std::string& close_label) {
             char prefix[48];
             snprintf(prefix, sizeof(prefix), "%s/%d", stop, (int)star_idx);
             std::string base = prefix;
@@ -1369,9 +1370,8 @@ namespace access::screens {
                 }
             }
 
-            int16_t close = MOX::moveable_box[0].close_btn;
-            if (Is_Valid_Field_(close)) {
-                Add_Field_Item_(builder, context, base + "/close", close, vocab::Get(vocab::VOCAB_CLOSE));
+            if (Is_Valid_Field_(close_field)) {
+                Add_Field_Item_(builder, context, base + "/close", close_field, close_label);
             }
         }
 
@@ -1414,7 +1414,7 @@ namespace access::screens {
             if (system >= 0) {
                 builder->BeginStop(GALAXY_SYSTEM_STOP);
                 builder->PushContext(vocab::Format(vocab::VOCAB_SYSTEM_DISPLAY, Star_Label_(system)));
-                Build_System_Stop_(builder, context, GALAXY_SYSTEM_STOP, system);
+                Build_System_Stop_(builder, context, GALAXY_SYSTEM_STOP, system, MOX::moveable_box[0].close_btn, vocab::Get(vocab::VOCAB_CLOSE));
                 builder->PopContext();
             }
 
@@ -1876,19 +1876,38 @@ namespace access::screens {
             return 0;
         }
 
-        void Add_Officer_Skill_(graph::GraphBuilder* builder, s_build_context* context, int16_t officer, int16_t skill_idx) {
+        void Add_Officer_Skill_(graph::GraphBuilder* builder, s_build_context* context, const std::string& prefix, int16_t officer,
+            int16_t skill_idx, bool has_help) {
             char value[80];
             snprintf(value, sizeof(value), MOX::skill_data[skill_idx].format_str,
                 (int32_t)(int16_t)OFFICER::Officer_Skill_Bonus(MOX::PLAYER_NUM, officer, skill_idx));
-            std::string key = "officer_offer/skill/" + std::to_string(skill_idx);
+            std::string key = prefix + "/skill/" + std::to_string(skill_idx);
             graph::NodeVtable vtable = Info_Vtable_(std::vector<std::string>{
                 text::Normalize_Game_Text(MOX::skill_data[skill_idx].name), text::Normalize_Game_Text(value) });
-            int16_t field_idx = Officer_Skill_Help_Field_(skill_idx);
+            int16_t field_idx = has_help ? Officer_Skill_Help_Field_(skill_idx) : 0;
             if (field_idx > 0) {
                 vtable.OnSecondary = [field_idx]() { navigator::Request_Field_Secondary(field_idx); };
                 context->node_fields[key] = field_idx;
             }
             builder->AddItem(graph::ControlId::Structural(key), vtable);
+        }
+
+        // OFFICER::Print_Officer_Data's order: the leader's special skills, then general ones.
+        void Add_Officer_Skills_(graph::GraphBuilder* builder, s_build_context* context, const std::string& prefix, int16_t officer,
+            bool has_help) {
+            uint16_t type = MOX::leaders[officer].type;
+            int32_t special_type = type == LEADER_TYPE_SHIP ? 1 : type == LEADER_TYPE_COLONY ? 2 : -1;
+            for (int16_t skill_idx = 0; skill_idx < 0x36; ++skill_idx) {
+                if ((int32_t)MOX::skill_data[skill_idx].skill_type == special_type &&
+                    OFFICER::Officer_Has_Special_Skill(MOX::PLAYER_NUM, officer, skill_idx)) {
+                    Add_Officer_Skill_(builder, context, prefix, officer, skill_idx, has_help);
+                }
+            }
+            for (int16_t skill_idx = 0; skill_idx < 0x36; ++skill_idx) {
+                if (MOX::skill_data[skill_idx].skill_type == 0 && OFFICER::Officer_Has_General_Skill(MOX::PLAYER_NUM, officer, skill_idx)) {
+                    Add_Officer_Skill_(builder, context, prefix, officer, skill_idx, has_help);
+                }
+            }
         }
 
         void Officer_Offer_Build_(graph::GraphBuilder* builder, s_build_context* context) {
@@ -1898,20 +1917,7 @@ namespace access::screens {
                 builder->AddItem(graph::ControlId::Structural("officer_offer/message"), Info_Vtable_(std::vector<std::string>{ message }));
             }
 
-            // OFFICER::Print_Officer_Data's order: the leader's special skills, then general ones.
-            uint16_t type = MOX::leaders[officer].type;
-            int32_t special_type = type == LEADER_TYPE_SHIP ? 1 : type == LEADER_TYPE_COLONY ? 2 : -1;
-            for (int16_t skill_idx = 0; skill_idx < 0x36; ++skill_idx) {
-                if ((int32_t)MOX::skill_data[skill_idx].skill_type == special_type &&
-                    OFFICER::Officer_Has_Special_Skill(MOX::PLAYER_NUM, officer, skill_idx)) {
-                    Add_Officer_Skill_(builder, context, officer, skill_idx);
-                }
-            }
-            for (int16_t skill_idx = 0; skill_idx < 0x36; ++skill_idx) {
-                if (MOX::skill_data[skill_idx].skill_type == 0 && OFFICER::Officer_Has_General_Skill(MOX::PLAYER_NUM, officer, skill_idx)) {
-                    Add_Officer_Skill_(builder, context, officer, skill_idx);
-                }
-            }
+            Add_Officer_Skills_(builder, context, "officer_offer", officer, true);
 
             // The buttons carry only one-letter hotkeys. Before the choice they are Hire and
             // Reject; after it, any press closes the popup.
@@ -3055,11 +3061,123 @@ namespace access::screens {
             polled_build_mode = mode;
         }
 
+        // ---- Officer level popup -------------------------------------------------------------------
+
+        // MAINPUPS::Officer_Gains_Level_Popup: a leader gaining a level, or a marooned hero found in
+        // a system who joins or has no room to (officer_gains_level_state). Any press closes it.
+        bool Officer_Level_Is_Active_() {
+            return MAINPUPS::level_popup_awaiting_input != 0 && MAINPUPS::g_officer >= 0;
+        }
+
+        std::string Officer_Level_Instance_Key_() {
+            return "officer_level/" + std::to_string(MAINPUPS::g_officer) + "/" + std::to_string(MAINPUPS::officer_gains_level_state);
+        }
+
+        // The title Draw_Officer_Gains_Level_Popup prints across the top.
+        std::string Officer_Level_Name_() {
+            return text::Normalize_Game_Text(OFFICER::Leader_Name(MAINPUPS::g_officer, 1));
+        }
+
+        // The paragraph Draw_Officer_Gains_Level_Popup prints under the skills.
+        std::string Officer_Level_Message_() {
+            const int16_t formats[3] = {
+                ESTR_S_GAINS_A_LEVEL,
+                ESTR_YOU_FIND_S_WHO_JOINS_YOU_OUT_OF_GRATITUDE_FOR_BEING_RESCUED,
+                ESTR_YOU_FIND_S_WHO_WOULD_JOIN_YOU_OUT_OF_GRATITUDE_FOR_BEING_RESCUED_BUT_YOU_HAVE_NO_ROOM,
+            };
+            int16_t state = MAINPUPS::officer_gains_level_state;
+            if (state < 0 || state > 2) {
+                return std::string();
+            }
+            char name[100] = {};
+            strlcpy(name, OFFICER::Leader_Name(MAINPUPS::g_officer, 0), sizeof(name));
+            char message[500];
+            snprintf(message, sizeof(message), ESTRINGS::E_Strings(formats[state]), name);
+            return text::Normalize_Game_Text(message);
+        }
+
+        void Officer_Level_Build_(graph::GraphBuilder* builder, s_build_context* context) {
+            std::string message = Officer_Level_Message_();
+            if (!message.empty()) {
+                builder->AddItem(graph::ControlId::Structural("officer_level/message"), Info_Vtable_(std::vector<std::string>{ message }));
+            }
+            // The popup adds no skill help fields, so a stale hire popup field must not stand in.
+            Add_Officer_Skills_(builder, context, "officer_level", MAINPUPS::g_officer, false);
+            int16_t close = MAINPUPS::mp_fields[0];
+            if (Is_Valid_Field_(close)) {
+                Add_Field_Item_(builder, context, "officer_level/continue", close, vocab::Get(vocab::VOCAB_CONTINUE));
+            }
+            if (!message.empty()) {
+                builder->SetStart(graph::ControlId::Structural("officer_level/message"));
+            }
+        }
+
+        // ---- Planet selection popup ----------------------------------------------------------------
+
+        // MAINPUPS::New_Colony_Selection_Popup: a system display whose planets are pressed to choose
+        // where a colony ship, colony base, outpost, troops, or artificial planet goes.
+        bool Planet_Select_Is_Active_() {
+            return MAINPUPS::selection_popup_awaiting_input != 0 && COLONY::sys_disp_star_handle >= 0 &&
+                COLONY::sys_disp_star_handle < MOX::NUM_STARS;
+        }
+
+        // A system special notice Draw_Selection_Popup draws over the display until the next press.
+        // A marooned hero draws nothing; the next press opens the officer level popup instead.
+        bool Planet_Select_Special_Shown_() {
+            return MAINPUPS::g_special != SYSTEM_SPECIAL_NO_SPECIAL && MAINPUPS::g_special != SYSTEM_SPECIAL_MAROONED_HERO &&
+                MAINPUPS::g_special < SYSTEM_SPECIAL_COUNT;
+        }
+
+        std::string Planet_Select_Instance_Key_() {
+            return "planet_select/" + std::to_string(COLONY::sys_disp_star_handle) + (Planet_Select_Special_Shown_() ? "/special" : "");
+        }
+
+        // The prompt Draw_Selection_Popup titles the display with.
+        std::string Planet_Select_Name_() {
+            int16_t string_id = -1;
+            switch (MAINPUPS::selection_state_flag) {
+                case 0:
+                    string_id = MAINPUPS::g_using_colony_ship != 0 ? ESTR_SELECT_PLANET_FOR_COLONY_SHIP_IN_S_SYSTEM
+                                                                   : ESTR_SELECT_PLANET_FOR_COLONY_BASE_IN_S_SYSTEM;
+                    break;
+                case 1: string_id = ESTR_SELECT_PLANET_FOR_AN_OUTPOST_IN_THE_S_SYSTEM; break;
+                case 2: string_id = ESTR_SELECT_PLANET_FOR_TROOPS_IN_THE_S_SYSTEM; break;
+                case 3: string_id = ESTR_SELECT_PLANET_FOR_ARTIFICIAL_PLANET_CONSTRUCTION_IN_THE_S_SYSTEM; break;
+                default: break;
+            }
+            int16_t star_idx = MAINPUPS::g_star_n;
+            if (string_id < 0 || star_idx < 0 || star_idx >= MOX::NUM_STARS) {
+                return Star_Name_(COLONY::sys_disp_star_handle);
+            }
+            char prompt[300];
+            snprintf(prompt, sizeof(prompt), ESTRINGS::E_Strings(string_id), MOX::star[star_idx].name);
+            return text::Normalize_Game_Text(prompt);
+        }
+
+        void Planet_Select_Build_(graph::GraphBuilder* builder, s_build_context* context) {
+            if (Planet_Select_Special_Shown_()) {
+                uint8_t special = MAINPUPS::g_special;
+                builder->AddItem(graph::ControlId::Structural("planet_select/special"), Info_Vtable_(std::vector<std::string>{
+                    text::Normalize_Game_Text(MOX::planet_special_string[special]),
+                    text::Normalize_Game_Text(MAINPUPS::System_Special_Desc(special)) }));
+                int16_t close = MAINPUPS::mp_fields[0];
+                if (Is_Valid_Field_(close)) {
+                    Add_Field_Item_(builder, context, "planet_select/continue", close, vocab::Get(vocab::VOCAB_CONTINUE));
+                }
+                return;
+            }
+            // Its close button is the popup's own cancel, not the galaxy display's.
+            Build_System_Stop_(builder, context, "planet_select", COLONY::sys_disp_star_handle, MAINPUPS::mp_fields[2],
+                vocab::Get(vocab::VOCAB_CANCEL));
+        }
+
         const s_screen_recipe recipes[] = {
             { "text_box", Text_Box_Is_Active_, Text_Box_Instance_Key_, Text_Box_Build_, Text_Box_Name_ },
             { "confirm", Confirmation_Is_Active_, Confirmation_Instance_Key_, Confirmation_Build_, Confirmation_Name_ },
             { "science_room", Science_Room_Is_Active_, Science_Room_Instance_Key_, Science_Room_Build_, Science_Room_Name_,
                 Science_Room_Poll_ },
+            { "officer_level", Officer_Level_Is_Active_, Officer_Level_Instance_Key_, Officer_Level_Build_, Officer_Level_Name_ },
+            { "planet_select", Planet_Select_Is_Active_, Planet_Select_Instance_Key_, Planet_Select_Build_, Planet_Select_Name_ },
             { "officer_offer", Officer_Offer_Is_Active_, Officer_Offer_Instance_Key_, Officer_Offer_Build_, Officer_Offer_Name_ },
             { "turn_summary", Turn_Summary_Is_Active_, Turn_Summary_Instance_Key_, Turn_Summary_Build_, Turn_Summary_Name_,
                 Turn_Summary_Poll_ },
