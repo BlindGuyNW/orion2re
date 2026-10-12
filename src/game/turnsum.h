@@ -13,6 +13,11 @@ namespace TURNSUM {
     extern s_list_state g_turn_sum_header;
     extern uint8_t g_turn_message_ix;
     extern s_list_item* g_selected_msg_p;
+    // The popup's OK and page buttons while Turn_Summary_Popup waits for input, for the screen
+    // reader layer; shown_ok_field is 0 otherwise.
+    extern int16_t shown_ok_field;
+    extern int16_t shown_page_up_field;
+    extern int16_t shown_page_down_field;
 
     /**
      * Updates the turn summary popup selection state and redraws the visible list text.

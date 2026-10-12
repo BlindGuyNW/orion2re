@@ -8,6 +8,7 @@ namespace MAINPUPS {
     uint8_t on_officer_screen_flag;
 
     int16_t g_officer = -1;
+    uint8_t officer_popup_awaiting_input;
 
     int16_t officer_gains_level_state;
 
@@ -899,7 +900,9 @@ namespace MAINPUPS {
             on_officer_screen_flag == 0;
 
         do {
+            officer_popup_awaiting_input = 1;
             int16_t input = fields::Get_Input();
+            officer_popup_awaiting_input = 0;
             int16_t scan_input = fields::Scan_Input();
 
             OFFICER::Wrapper_For_Officer_Popup_Help_Fields(input, g_officer);

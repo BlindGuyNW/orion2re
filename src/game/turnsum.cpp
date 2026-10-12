@@ -89,6 +89,9 @@ namespace TURNSUM {
     uint8_t g_turn_message_ix;
 
     s_list_item* g_selected_msg_p;
+    int16_t shown_ok_field;
+    int16_t shown_page_up_field;
+    int16_t shown_page_down_field;
 
     void __cdecl Draw_Turn_Summary_Popup() {
         g_turn_sum_header.group_colors[0] = &turn_sum_high_color;
@@ -176,7 +179,11 @@ namespace TURNSUM {
                 bool full_draw_requested = false;
 
                 while (true) {
+                    shown_ok_field = field_btn_ok;
+                    shown_page_up_field = field_btn_up;
+                    shown_page_down_field = field_btn_down;
                     int16_t input_field = fields::Get_Input();
+                    shown_ok_field = 0;
 
                     if (MOX::FULL_DRAW_SCREEN_FLAG != 0) {
                         full_draw_requested = true;

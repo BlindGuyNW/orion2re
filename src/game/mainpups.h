@@ -37,6 +37,8 @@ namespace MAINPUPS {
     extern uint8_t on_officer_screen_flag;
 
     extern int16_t g_officer;
+    // Set while Random_New_Officer_Popup waits for input, for the screen reader layer.
+    extern uint8_t officer_popup_awaiting_input;
 
     extern int16_t officer_gains_level_state;
 

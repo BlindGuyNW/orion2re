@@ -42,6 +42,9 @@ The layer touches the game in these places:
 - `TECH::_Tech_Select()` and its callers publish the research areas, Accept button, and open browse list.
 - `GENDRAW::Confirmation_Box()` publishes its question while it waits for input.
 - `COLONY::Colony_Screen()` sets `COLONY::awaiting_input` while its own loop waits for input.
+- `TURNSUM::Turn_Summary_Popup()` publishes its OK and page buttons while it waits for input.
+- `MAINPUPS::Random_New_Officer_Popup()` sets `MAINPUPS::officer_popup_awaiting_input` while it waits for input.
+- `SCIENCE::Science_Room()` publishes its footer and the current discovery's text while it waits for input.
 - `MOX2::thunk_main2()` initializes and shuts down the layer on the game thread.
 
 Keys are claimed only while a cursor is seated, no continuous text field is active, and the game thread has polled fields within the last 300 milliseconds. Text-entry loops, animations, and loads that do not poll fields therefore receive their keys normally.
@@ -71,3 +74,9 @@ The research screen runs inside whatever loop asked for it, so `TECH::_Tech_Sele
 `GENDRAW::Confirmation_Box` adds its Yes and No fields above the screen's own, so it publishes its question in `GENDRAW::shown_confirmation` while it waits. The confirmation recipe speaks the question as the screen's name and lists the two buttons.
 
 The colony screen's popups (transport, troops, occupation policy, auto build) run nested loops from inside the colony loop without changing `MOX::current_screen`, so the colony recipe matches only while `COLONY::awaiting_input` is set around the loop's own `Get_Input`. Each job row is a scroll field whose value is the x of the press, and `COLONY::Check_Job_Fields` picks up the colonist in that slot together with the identical colonists after it. The recipe lists each row's colonists in the order `COLDRAW::Do_Colony_Info_Pop_Stuff_For_Pop` lays them out, and Enter puts the pointer inside the colonist's slot, using the same squish arithmetic, before pressing the row. Enter on a row's heading picks up its last colonist. While colonists are held the rows become hidden drop fields, so Enter anywhere in a row places them there, and the poll speaks what is held because picking up can remove the focused colonist from its row.
+
+The turn summary sets `MOX::current_screen` to the main screen while it runs, so `TURNSUM::Turn_Summary_Popup` publishes its OK button in `TURNSUM::shown_ok_field`, and its page buttons beside it, while it waits for input. The recipe lists every message, not just the page on screen, from `MSG_::sprintf_msg`, which the popup's own draw calls every frame. A press on a message acts on the entry the draw last selected from the pointer, so Enter makes that selection first. Enter on a message on another page presses the page buttons until it is shown, then presses it.
+
+The leader-for-hire popup labels its buttons only with one-letter hotkeys and draws everything else, so the recipe rebuilds the offer paragraph and the skill lines from the same strings `MAINPUPS::Draw_Random_New_Officer_Popup` and `OFFICER::Print_Officer_Data` use. Backspace on a skill right-clicks its help field, which shows the skill's description.
+
+`SCIENCE::Science_Room` presents new technology one discovery at a time, drawing the text into a bitmap, so it publishes its footer line in `SCIENCE::shown_footer` while it waits for input, and the current discovery's title, weapon note, and description in `shown_title`, `shown_note`, and `shown_body` once it has drawn them. The first discovery is drawn after the first poll, so the recipe shows the footer until then, and its poll moves focus to each new title. Enter on any line advances, as a click does; Escape closes the room.

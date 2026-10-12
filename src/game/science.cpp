@@ -17,6 +17,10 @@ namespace SCIENCE {
     int16_t bm_scaled_y1[5] = {203, 179, 149, 113, 69};
 
     void* science_mouse_bitmap;
+    const char* shown_footer;
+    const char* shown_title;
+    const char* shown_note;
+    const char* shown_body;
 
     void __cdecl Show_Off_Captured_Tech(int16_t* captured_tech_ids, uint16_t tech_count, int16_t message_arg) {
         char text_buffer[0x100];
@@ -232,7 +236,9 @@ namespace SCIENCE {
                 JIM::Play_Streaming_Music(0x75, -2, 1);
                 timer::Mark_Time();
 
+                shown_footer = footer_text;
                 const int16_t input_key = fields::Get_Input();
+                shown_footer = nullptr;
                 if (input_key == 0 && !first_entry) {
                     SCIENCE::Update_Science_Anims(true, true, true, true);
                 } else {
@@ -259,6 +265,8 @@ namespace SCIENCE {
                         discovery_data[current_entry_index] & 0x01FF,
                         1,
                         0x57B);
+                    shown_title = formatted_text;
+                    shown_note = nullptr;
 
                     bitmap::Create_Blank_Bitmap(0xAF, 0xC3, current_text_bitmap);
 
@@ -273,6 +281,7 @@ namespace SCIENCE {
 
                     if ((discovery_data[current_entry_index] & 0x4000) != 0) {
                         fonts::Print_To_Bitmap(2, text_y, bill_text, current_text_bitmap);
+                        shown_note = bill_text;
 
                         ++current_entry_index;
 
@@ -298,6 +307,7 @@ namespace SCIENCE {
                     }
 
                     FMTPARA::Print_Formatted_Paragraph_To_Bitmap(2, text_y, 0xAB, formatted_text, 2, (s_animation_header*)current_text_bitmap);
+                    shown_body = formatted_text;
 
                     ++current_entry_index;
                     --remaining_discoveries;
@@ -383,6 +393,9 @@ namespace SCIENCE {
             }
         }
 
+        shown_title = nullptr;
+        shown_note = nullptr;
+        shown_body = nullptr;
         allocate::Pop_Block(MOX::screen_seg);
         fields::Clear_Fields();
         fields::Clear_Mouse_Buffer();

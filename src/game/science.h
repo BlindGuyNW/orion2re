@@ -22,6 +22,13 @@ namespace SCIENCE {
 
     extern void* science_mouse_bitmap;
 
+    // What Science_Room is showing while it waits for input, for the screen reader layer: the
+    // footer line, and the current discovery's title, weapon note, and description once drawn.
+    extern const char* shown_footer;
+    extern const char* shown_title;
+    extern const char* shown_note;
+    extern const char* shown_body;
+
     /* Displays the science-room sequence for a stolen technology.
      * tech_idx: Technology id to present.
      * other_player_idx: Other player referenced by the decoded message.
