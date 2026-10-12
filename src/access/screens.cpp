@@ -1690,6 +1690,348 @@ namespace access::screens {
             builder->SetStart(graph::ControlId::Structural("confirm/yes"));
         }
 
+        // ---- Turn summary ------------------------------------------------------------------------
+
+        // TURNSUM::Turn_Summary_Popup lists the turn's messages a page at a time and publishes its
+        // buttons while it waits for input. A press on a message opens the colony it names, when
+        // it names one, and acts on the entry the draw last selected from the pointer.
+        bool Turn_Summary_Is_Active_() {
+            return TURNSUM::shown_ok_field > 0 && TURNSUM::g_turn_sum_header.items != nullptr;
+        }
+
+        std::string Turn_Summary_Instance_Key_() {
+            return "turn_summary";
+        }
+
+        std::string Turn_Summary_Name_() {
+            return vocab::Get(vocab::VOCAB_SCREEN_TURN_SUMMARY);
+        }
+
+        // The current page runs from the page pointer to the next entry that starts a page
+        // (LIST::Add_Fields_To_List_Page).
+        bool Turn_Message_On_Page_(int16_t index) {
+            const s_list_state* list = &TURNSUM::g_turn_sum_header;
+            const s_list_item* item = list->selected_item;
+            const s_list_item* end = &list->items[list->num_items];
+            while (item != nullptr && item < end) {
+                if (item == &list->items[index]) {
+                    return true;
+                }
+                if (item + 1 >= end || item[1].stop_flag != 0) {
+                    break;
+                }
+                ++item;
+            }
+            return false;
+        }
+
+        int16_t Turn_Message_Field_(int16_t index) {
+            if (!Turn_Message_On_Page_(index)) {
+                return 0;
+            }
+            const s_list_item* item = &TURNSUM::g_turn_sum_header.items[index];
+            int16_t field_idx = item->app_count > 0 ? (int16_t)(int8_t)item->app_ids[0] : 0;
+            return Is_Valid_Field_(field_idx) ? field_idx : 0;
+        }
+
+        // Makes the selection Draw_Turn_Summary_Popup would make with the pointer on the message,
+        // so a press that lands before the next draw opens the right colony.
+        void Press_Turn_Message_(int16_t field_idx) {
+            s_list_state* list = &TURNSUM::g_turn_sum_header;
+            LIST::Set_Selected_List_Entry(list, field_idx);
+            TURNSUM::g_selected_msg_p = LIST::Get_Selected_List_Entry(list);
+            navigator::Request_Field_Activation(field_idx);
+        }
+
+        // A message on another page, waiting for the popup's page buttons to bring it up.
+        int16_t pending_turn_message = -1;
+        int32_t pending_turn_message_ticks = 0;
+        uint8_t pending_turn_message_page = 0;
+
+        void Page_Toward_Turn_Message_(int16_t index) {
+            const s_list_state* list = &TURNSUM::g_turn_sum_header;
+            bool forward = list->selected_item == nullptr || &list->items[index] > list->selected_item;
+            int16_t button = forward ? TURNSUM::shown_page_down_field : TURNSUM::shown_page_up_field;
+            pending_turn_message_page = list->cur_page;
+            if (Is_Valid_Field_(button)) {
+                navigator::Request_Field_Activation(button);
+            }
+        }
+
+        // The player never has to page: a message off the page is paged to, then pressed.
+        void Activate_Turn_Message_(int16_t index) {
+            int16_t field_idx = Turn_Message_Field_(index);
+            if (field_idx > 0) {
+                pending_turn_message = -1;
+                Press_Turn_Message_(field_idx);
+                return;
+            }
+            pending_turn_message = index;
+            pending_turn_message_ticks = 0;
+            Page_Toward_Turn_Message_(index);
+        }
+
+        void Turn_Summary_Poll_(bool just_attached) {
+            if (just_attached) {
+                pending_turn_message = -1;
+                return;
+            }
+            if (pending_turn_message < 0) {
+                return;
+            }
+            if (++pending_turn_message_ticks >= PENDING_STAR_MAX_TICKS) {
+                pending_turn_message = -1;
+                return;
+            }
+            int16_t field_idx = Turn_Message_Field_(pending_turn_message);
+            if (field_idx > 0) {
+                pending_turn_message = -1;
+                Press_Turn_Message_(field_idx);
+            } else if (TURNSUM::g_turn_sum_header.cur_page != pending_turn_message_page) {
+                Page_Toward_Turn_Message_(pending_turn_message);
+            }
+        }
+
+        // Every message, not just the page on screen: a sighted player pages through them all.
+        void Turn_Summary_Build_(graph::GraphBuilder* builder, s_build_context* context) {
+            const s_list_state* list = &TURNSUM::g_turn_sum_header;
+            for (int16_t i = 0; i < list->num_items; ++i) {
+                uint8_t msg_idx = list->items[i].group_id;
+                if (msg_idx > 0xFA) {
+                    continue;
+                }
+                char text[256];
+                MSG_::sprintf_msg(text, sizeof(text), &MSG_::msgs[msg_idx]);
+                std::string key = "turn_summary/message/" + std::to_string(i);
+                graph::NodeVtable vtable = Info_Vtable_(std::vector<std::string>{ text::Normalize_Game_Text(text) });
+                vtable.Type = &button_type;
+                vtable.OnActivate = [i]() { Activate_Turn_Message_(i); };
+                int16_t field_idx = Turn_Message_Field_(i);
+                if (field_idx > 0) {
+                    context->node_fields[key] = field_idx;
+                }
+                builder->AddItem(graph::ControlId::Structural(key), vtable);
+            }
+            if (Is_Valid_Field_(TURNSUM::shown_ok_field)) {
+                Add_Field_Item_(builder, context, "turn_summary/ok", TURNSUM::shown_ok_field, vocab::Get(vocab::VOCAB_OK));
+            }
+        }
+
+        // ---- Leader for hire ----------------------------------------------------------------------
+
+        // MAINPUPS::Random_New_Officer_Popup offers a leader for hire, at the start of a turn or
+        // from the leaders screen. Its fields are two buttons, a help field per skill, and after a
+        // choice in the tutorial a full-screen field that closes it.
+        bool Officer_Offer_Is_Active_() {
+            return MAINPUPS::officer_popup_awaiting_input != 0 && MAINPUPS::g_officer >= 0;
+        }
+
+        std::string Officer_Offer_Instance_Key_() {
+            return "officer_offer/" + std::to_string(MAINPUPS::g_officer) + "/" + std::to_string(MAINPUPS::field_state);
+        }
+
+        // The title Draw_Random_New_Officer_Popup prints across the top.
+        std::string Officer_Offer_Name_() {
+            return text::Normalize_Game_Text(OFFICER::Leader_Name(MAINPUPS::g_officer, 1));
+        }
+
+        // The paragraph Draw_Random_New_Officer_Popup prints under the skills: the offer, or what
+        // the leader does after the choice.
+        std::string Officer_Offer_Message_() {
+            int16_t officer = MAINPUPS::g_officer;
+            int16_t player = MAINPUPS::g_player_n;
+            int16_t state = MAINPUPS::field_state;
+            int32_t cost = OFFICER::Calculate_Officer_Cost(player, officer);
+            char name[100] = {};
+            strlcpy(name, OFFICER::Leader_Name(officer, 0), sizeof(name));
+            char message[500] = {};
+            if (MAINPUPS::on_officer_screen_flag != 0 || state == 0 || state == 2) {
+                char technology[500] = {};
+                MAINPUPS::Leader_Technology_String(player, officer, technology, sizeof(technology));
+                const char* format = MAINPUPS::on_officer_screen_flag != 0 ? HAROLD::H_Message(HESTR_125_S_WILL_COST_D_BCS_INIT)
+                    : state == 2                                            ? ESTRINGS::E_Strings(5)
+                                                                            : ESTRINGS::E_Strings(2);
+                snprintf(message, sizeof(message), format, name, cost, (int)OFFICER::Officer_Maintenance(player, officer), technology);
+                if (technology[0] != '\0' && strstr(message, technology) == nullptr) {
+                    strlcat(message, "\n", sizeof(message));
+                    strlcat(message, technology, sizeof(message));
+                }
+            } else if (state == 1) {
+                snprintf(message, sizeof(message), ESTRINGS::E_Strings(6), name, cost);
+            } else if (state == 3) {
+                snprintf(message, sizeof(message), ESTRINGS::E_Strings(4), name, cost);
+            }
+            return text::Normalize_Game_Text(message);
+        }
+
+        // The help field OFFICER::Add_Skill_Description_Help_Fields made for a skill; a right click
+        // on it shows the skill's description.
+        int16_t Officer_Skill_Help_Field_(int16_t skill_idx) {
+            const s_officer_skill_help* help = &OFFICER::officer_skill_help[0];
+            for (int16_t i = 0; i < 5; ++i) {
+                if (help->skill_id[i] == skill_idx && Is_Valid_Field_(help->skill_help_x[i])) {
+                    return help->skill_help_x[i];
+                }
+            }
+            return 0;
+        }
+
+        void Add_Officer_Skill_(graph::GraphBuilder* builder, s_build_context* context, int16_t officer, int16_t skill_idx) {
+            char value[80];
+            snprintf(value, sizeof(value), MOX::skill_data[skill_idx].format_str,
+                (int32_t)(int16_t)OFFICER::Officer_Skill_Bonus(MOX::PLAYER_NUM, officer, skill_idx));
+            std::string key = "officer_offer/skill/" + std::to_string(skill_idx);
+            graph::NodeVtable vtable = Info_Vtable_(std::vector<std::string>{
+                text::Normalize_Game_Text(MOX::skill_data[skill_idx].name), text::Normalize_Game_Text(value) });
+            int16_t field_idx = Officer_Skill_Help_Field_(skill_idx);
+            if (field_idx > 0) {
+                vtable.OnSecondary = [field_idx]() { navigator::Request_Field_Secondary(field_idx); };
+                context->node_fields[key] = field_idx;
+            }
+            builder->AddItem(graph::ControlId::Structural(key), vtable);
+        }
+
+        void Officer_Offer_Build_(graph::GraphBuilder* builder, s_build_context* context) {
+            int16_t officer = MAINPUPS::g_officer;
+            std::string message = Officer_Offer_Message_();
+            if (!message.empty()) {
+                builder->AddItem(graph::ControlId::Structural("officer_offer/message"), Info_Vtable_(std::vector<std::string>{ message }));
+            }
+
+            // OFFICER::Print_Officer_Data's order: the leader's special skills, then general ones.
+            uint16_t type = MOX::leaders[officer].type;
+            int32_t special_type = type == LEADER_TYPE_SHIP ? 1 : type == LEADER_TYPE_COLONY ? 2 : -1;
+            for (int16_t skill_idx = 0; skill_idx < 0x36; ++skill_idx) {
+                if ((int32_t)MOX::skill_data[skill_idx].skill_type == special_type &&
+                    OFFICER::Officer_Has_Special_Skill(MOX::PLAYER_NUM, officer, skill_idx)) {
+                    Add_Officer_Skill_(builder, context, officer, skill_idx);
+                }
+            }
+            for (int16_t skill_idx = 0; skill_idx < 0x36; ++skill_idx) {
+                if (MOX::skill_data[skill_idx].skill_type == 0 && OFFICER::Officer_Has_General_Skill(MOX::PLAYER_NUM, officer, skill_idx)) {
+                    Add_Officer_Skill_(builder, context, officer, skill_idx);
+                }
+            }
+
+            // The buttons carry only one-letter hotkeys. Before the choice they are Hire and
+            // Reject; after it, any press closes the popup.
+            int16_t hire = MAINPUPS::mp_fields[7];
+            int16_t reject = MAINPUPS::mp_fields[8];
+            std::string start;
+            if (MAINPUPS::field_state == 0) {
+                if (Is_Valid_Field_(hire)) {
+                    Add_Field_Item_(builder, context, "officer_offer/hire", hire, vocab::Get(vocab::VOCAB_OFFICER_HIRE));
+                    start = "officer_offer/hire";
+                }
+                if (Is_Valid_Field_(reject)) {
+                    Add_Field_Item_(builder, context, "officer_offer/reject", reject, vocab::Get(vocab::VOCAB_OFFICER_REJECT));
+                }
+            } else if (Is_Valid_Field_(reject)) {
+                Add_Field_Item_(builder, context, "officer_offer/ok", reject, vocab::Get(vocab::VOCAB_OK));
+                start = "officer_offer/ok";
+            }
+            if (!message.empty()) {
+                start = "officer_offer/message";
+            }
+            if (!start.empty()) {
+                builder->SetStart(graph::ControlId::Structural(start));
+            }
+        }
+
+        // ---- Science room --------------------------------------------------------------------------
+
+        // SCIENCE::Science_Room presents new technology (researched, stolen, captured, or found)
+        // one discovery at a time. A click shows the next one and closes after the last; Escape,
+        // its hotkey, closes it at once.
+        bool Science_Room_Is_Active_() {
+            return SCIENCE::shown_footer != nullptr;
+        }
+
+        std::string Science_Room_Instance_Key_() {
+            return std::string("science/") + SCIENCE::shown_footer;
+        }
+
+        std::string Science_Room_Name_() {
+            return vocab::Get(vocab::VOCAB_SCREEN_DISCOVERY);
+        }
+
+        // One string per line or paragraph break, so long text can be read a piece at a time.
+        std::vector<std::string> Game_Text_Lines_(const char* raw_text) {
+            std::vector<std::string> lines;
+            std::string raw = raw_text != nullptr ? raw_text : "";
+            size_t start = 0;
+            while (start <= raw.size()) {
+                size_t end = raw.find_first_of("\r\n", start);
+                if (end == std::string::npos) {
+                    end = raw.size();
+                }
+                std::string line = text::Normalize_Game_Text(raw.substr(start, end - start).c_str());
+                start = end + 1;
+                if (!line.empty()) {
+                    lines.push_back(line);
+                }
+            }
+            return lines;
+        }
+
+        const char* const SCIENCE_ENTRY_STOP = "science/entry";
+
+        void Science_Room_Build_(graph::GraphBuilder* builder, s_build_context* context) {
+            int16_t click = 0;
+            for (int16_t i = 1; i < fields::fields_count; ++i) {
+                if (Is_Catch_All_(&fields::fields[i])) {
+                    click = i;
+                    break;
+                }
+            }
+            auto add_line = [builder, click](const std::string& key, const std::string& text) {
+                graph::NodeVtable vtable = Info_Vtable_(std::vector<std::string>{ text });
+                if (click > 0) {
+                    vtable.OnActivate = [click]() { navigator::Request_Field_Activation(click); };
+                }
+                builder->AddItem(graph::ControlId::Structural(key), vtable);
+            };
+
+            // Keys carry the discovery's title, so the next one starts at its title.
+            std::string title = SCIENCE::shown_title != nullptr ? text::Normalize_Game_Text(SCIENCE::shown_title) : std::string();
+            std::string base = "science/" + title + "/";
+            std::string footer = text::Normalize_Game_Text(SCIENCE::shown_footer);
+
+            builder->BeginStop(SCIENCE_ENTRY_STOP);
+            if (SCIENCE::shown_title == nullptr) {
+                add_line(base + "footer", footer);
+            } else {
+                add_line(base + "title", title);
+                if (SCIENCE::shown_note != nullptr) {
+                    add_line(base + "note", text::Normalize_Game_Text(SCIENCE::shown_note));
+                }
+                std::vector<std::string> body = Game_Text_Lines_(SCIENCE::shown_body);
+                for (size_t i = 0; i < body.size(); ++i) {
+                    add_line(base + "body/" + std::to_string(i), body[i]);
+                }
+            }
+            if (click > 0) {
+                Add_Field_Item_(builder, context, base + "continue", click, vocab::Get(vocab::VOCAB_CONTINUE));
+            }
+
+            if (SCIENCE::shown_title != nullptr && !footer.empty()) {
+                builder->BeginStop("science/footer");
+                add_line("science/footer", footer);
+            }
+        }
+
+        // The next discovery replaces the text without any input focus can see, so the poll
+        // moves focus to its title.
+        std::string polled_science_title;
+
+        void Science_Room_Poll_(bool just_attached) {
+            std::string title = SCIENCE::shown_title != nullptr ? std::string(SCIENCE::shown_title) : std::string();
+            if (!just_attached && !title.empty() && title != polled_science_title) {
+                navigator::Request_Focus_Stop(SCIENCE_ENTRY_STOP);
+            }
+            polled_science_title = title;
+        }
+
         // ---- Colony screen -----------------------------------------------------------------------
 
         // The job rows' geometry, from COLONY::Add_Job_Field_For.
@@ -2245,6 +2587,11 @@ namespace access::screens {
         const s_screen_recipe recipes[] = {
             { "text_box", Text_Box_Is_Active_, Text_Box_Instance_Key_, Text_Box_Build_, Text_Box_Name_ },
             { "confirm", Confirmation_Is_Active_, Confirmation_Instance_Key_, Confirmation_Build_, Confirmation_Name_ },
+            { "science_room", Science_Room_Is_Active_, Science_Room_Instance_Key_, Science_Room_Build_, Science_Room_Name_,
+                Science_Room_Poll_ },
+            { "officer_offer", Officer_Offer_Is_Active_, Officer_Offer_Instance_Key_, Officer_Offer_Build_, Officer_Offer_Name_ },
+            { "turn_summary", Turn_Summary_Is_Active_, Turn_Summary_Instance_Key_, Turn_Summary_Build_, Turn_Summary_Name_,
+                Turn_Summary_Poll_ },
             { "colony", Colony_Is_Active_, Colony_Instance_Key_, Colony_Build_, Colony_Name_, Colony_Poll_ },
             { "research", Research_Is_Active_, Research_Instance_Key_, Research_Build_, Research_Name_ },
             { "main_menu", Main_Menu_Is_Active_, Main_Menu_Instance_Key_, Main_Menu_Build_, Main_Menu_Name_ },

@@ -102,6 +102,11 @@ namespace access::vocab {
             "Yes",
             "No",
             "Confirm",
+            "OK",
+            "Hire",
+            "Reject",
+            "Discovery",
+            "Continue",
 
             "Summary",
             "Population",

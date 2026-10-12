@@ -104,6 +104,11 @@ namespace access::vocab {
         VOCAB_YES,
         VOCAB_NO,
         VOCAB_CONFIRM,
+        VOCAB_OK,
+        VOCAB_OFFICER_HIRE,
+        VOCAB_OFFICER_REJECT,
+        VOCAB_SCREEN_DISCOVERY,
+        VOCAB_CONTINUE,
 
         VOCAB_COLONY_SUMMARY,
         VOCAB_COLONY_POPULATION,
