@@ -47,10 +47,9 @@ namespace access::screens {
         }
 
         // One node per line or paragraph break of the message, so a long message can be read a
-        // paragraph at a time.
-        void Text_Box_Build_(graph::GraphBuilder* builder, s_build_context*) {
-            int16_t dismiss = Text_Box_Dismiss_Field_();
-            std::string raw = TEXTBOX::shown_text;
+        // paragraph at a time. Enter on any line dismisses it.
+        void Build_Message_Lines_(graph::GraphBuilder* builder, const std::string& key_prefix, const char* text, int16_t dismiss) {
+            std::string raw = text;
             size_t start = 0;
             int32_t line_number = 0;
             while (start <= raw.size()) {
@@ -63,13 +62,37 @@ namespace access::screens {
                 if (line.empty()) {
                     continue;
                 }
-                std::string key = "text_box/line/" + std::to_string(line_number++);
+                std::string key = key_prefix + std::to_string(line_number++);
                 graph::NodeVtable vtable = Info_Vtable(std::vector<std::string>{ line });
                 if (Is_Valid_Field(dismiss)) {
                     vtable.OnActivate = [dismiss]() { navigator::Request_Field_Activation(dismiss); };
                 }
                 builder->AddItem(graph::ControlId::Structural(key), vtable);
             }
+        }
+
+        void Text_Box_Build_(graph::GraphBuilder* builder, s_build_context*) {
+            Build_Message_Lines_(builder, "text_box/line/", TEXTBOX::shown_text, Text_Box_Dismiss_Field_());
+        }
+
+        // ---- Warning box -------------------------------------------------------------------------
+
+        // GENDRAW::Warning_Box animates its own box, and any input closes it, through the
+        // full-screen field it adds last.
+        bool Warning_Is_Active_() {
+            return GENDRAW::shown_warning != nullptr;
+        }
+
+        std::string Warning_Instance_Key_() {
+            return std::string("warning/") + GENDRAW::shown_warning;
+        }
+
+        std::string Warning_Name_() {
+            return vocab::Get(vocab::VOCAB_WARNING);
+        }
+
+        void Warning_Build_(graph::GraphBuilder* builder, s_build_context*) {
+            Build_Message_Lines_(builder, "warning/line/", GENDRAW::shown_warning, GENDRAW::first_field);
         }
 
         // ---- Confirmation box --------------------------------------------------------------------
@@ -428,6 +451,7 @@ namespace access::screens {
     } // namespace
 
     const s_screen_recipe text_box_recipe = { "text_box", Text_Box_Is_Active_, Text_Box_Instance_Key_, Text_Box_Build_, Text_Box_Name_ };
+    const s_screen_recipe warning_recipe = { "warning", Warning_Is_Active_, Warning_Instance_Key_, Warning_Build_, Warning_Name_ };
     const s_screen_recipe confirm_recipe = { "confirm", Confirmation_Is_Active_, Confirmation_Instance_Key_, Confirmation_Build_, Confirmation_Name_ };
     const s_screen_recipe input_box_recipe = { "input_box", Input_Box_Is_Active_, Input_Box_Instance_Key_, Input_Box_Build_, Input_Box_Name_ };
     const s_screen_recipe officer_level_recipe = { "officer_level", Officer_Level_Is_Active_, Officer_Level_Instance_Key_, Officer_Level_Build_, Officer_Level_Name_ };

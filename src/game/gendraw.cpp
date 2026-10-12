@@ -9,6 +9,7 @@ namespace GENDRAW {
     int16_t direction;
     int16_t first_field;
     const char* shown_confirmation;
+    const char* shown_warning;
     s_animation_header* image_seg[4];
     s_fieldsav_data message_field_save;
     MOX2::action_func_t gendraw_af;
@@ -138,6 +139,7 @@ namespace GENDRAW {
 
         fields::Assign_Auto_Function(Draw_Animating_Message_Box, 2);
 
+        shown_warning = str;
         int16_t input = fields::Get_Input();
         while (input == 0) {
             timer::Mark_Time();
@@ -147,6 +149,7 @@ namespace GENDRAW {
             timer::Release_Time(2);
             input = fields::Get_Input();
         }
+        shown_warning = nullptr;
 
         Message_Box_Cleanup();
     }

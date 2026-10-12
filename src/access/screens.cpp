@@ -12,6 +12,7 @@ namespace access::screens {
         // the generic field list comes last.
         const s_screen_recipe recipes[] = {
             text_box_recipe,
+            warning_recipe,
             confirm_recipe,
             input_box_recipe,
             science_room_recipe,

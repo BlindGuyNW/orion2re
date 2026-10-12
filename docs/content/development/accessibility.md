@@ -41,6 +41,7 @@ The layer touches the game in these places:
 - `TEXTBOX::Do_Text_Box()` publishes the title and text it is showing while it waits for input.
 - `TECH::_Tech_Select()` and its callers publish the research areas, Accept button, and open browse list.
 - `GENDRAW::Confirmation_Box()` publishes its question while it waits for input.
+- `GENDRAW::Message_Box_Exploding()`, the warning box, publishes its message while it waits for input.
 - `COLONY::Colony_Screen()` sets `COLONY::awaiting_input` while its own loop waits for input.
 - `COLBLDG::Build_Queue_Popup()` sets `COLBLDG::awaiting_input` while its own loop waits for input.
 - `TURNSUM::Turn_Summary_Popup()` publishes its OK and page buttons while it waits for input.
@@ -79,6 +80,8 @@ The fleet box's stop reads the status line `FLEETPOP::Print_Fleet_Box_Info` draw
 `TEXTBOX::Do_Text_Box` leaves the screen's fields in place under its own full-screen field, so it publishes the title and text it shows in `TEXTBOX::shown_title` and `shown_text` while it waits for input. The text box recipe matches first while those are set, and lists the message one line at a time. Enter on any line dismisses the box, as any click would.
 
 The research screen runs inside whatever loop asked for it, so `TECH::_Tech_Select` publishes its areas in `TECH::shown_entries` while it waits for input, its Accept button in `shown_accept_field`, and the area whose browse list `_Tech_List` has open over it in `shown_list_entry`. The recipe groups each area's technologies under a heading naming the area, the field, and its cost. The area names are drawn as pictures, so they are read from the same `billtext.lbx` messages `_Tech_List` titles its list with, through a reader that skips `JIM::Get_Text_Message`'s frame updates. The game picks a technology from the field under the pointer and the press commits the pick, so Enter also makes that pick with `TECH::Set_Selected_Entry`, in case the press lands before the next draw. Backspace shows a technology's description in the message box.
+
+`GENDRAW::Warning_Box` draws an animated box of its own rather than using the text box, so `GENDRAW::Message_Box_Exploding` publishes the message in `GENDRAW::shown_warning` while it waits. The warning recipe reads it a line at a time like the text box, and Enter on any line closes it.
 
 `GENDRAW::Confirmation_Box` adds its Yes and No fields above the screen's own, so it publishes its question in `GENDRAW::shown_confirmation` while it waits. The confirmation recipe speaks the question as the screen's name and lists the two buttons.
 

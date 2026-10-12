@@ -94,6 +94,7 @@ namespace access::vocab {
             "Fleet at %1",
             "Close",
             "Message",
+            "Warning",
             "All ships",
             "Click anywhere",
             "Choose research",

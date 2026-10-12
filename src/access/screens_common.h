@@ -75,6 +75,7 @@ namespace access::screens {
 
     // The recipes, in the files of their screens.
     extern const s_screen_recipe text_box_recipe;
+    extern const s_screen_recipe warning_recipe;
     extern const s_screen_recipe confirm_recipe;
     extern const s_screen_recipe input_box_recipe;
     extern const s_screen_recipe science_room_recipe;
