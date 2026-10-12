@@ -149,6 +149,9 @@ namespace COLBLDG {
 
     extern uint8_t return_to_build_popup_from_custom_design;
     extern uint8_t field_mode;
+    // Set while Build_Queue_Popup's own loop waits for input, for the screen reader layer; popups
+    // that run nested loops from Evaluate_Input leave it clear.
+    extern uint8_t awaiting_input;
     extern int16_t active_prod[4];
     extern int16_t current_item[7];
     extern int16_t last_app;

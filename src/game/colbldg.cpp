@@ -29,6 +29,7 @@ namespace COLBLDG {
     uint8_t return_to_build_popup_from_custom_design;
     uint8_t hacky_speed_refitted_ship_flag;
     uint8_t field_mode;
+    uint8_t awaiting_input;
     int16_t queue_fields[7] = {-1, -1, -1, -1, -1, 0, 0};
     int16_t building_indexes[54] = {-1};
     int16_t n_building_indexes;
@@ -612,7 +613,9 @@ namespace COLBLDG {
         do {
             COLBLDG::Draw_Build_Queue_Popup();
             RUSS::Mox_Sync_Update();
+            COLBLDG::awaiting_input = 1;
             field_id = ::fields::Get_Input();
+            COLBLDG::awaiting_input = 0;
             scan_code = ::fields::Scan_Input();
             COLBLDG::Evaluate_Input(&field_id, &scan_code);
 
