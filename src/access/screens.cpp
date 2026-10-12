@@ -125,7 +125,7 @@ namespace access::screens {
             }
         }
 
-        // The toggle or slider value line; empty for fields without one.
+        // The toggle, slider, or text field value line; empty for fields without one.
         std::string Field_Value_(int16_t field_idx) {
             if (!Is_Valid_Field_(field_idx)) {
                 return std::string();
@@ -143,6 +143,12 @@ namespace access::screens {
                     return scroll->value != nullptr
                         ? vocab::Format(vocab::VOCAB_VALUE, std::to_string(*scroll->value))
                         : std::string();
+                }
+                case FIELD_TYPE_CONTINUOUS_INPUT:
+                {
+                    const char* buffer = fields::Field_Data_Continuous_Input(field)->buffer;
+                    std::string text = buffer != nullptr ? text::Normalize_Game_Text(buffer) : std::string();
+                    return text.empty() ? std::string(vocab::Get(vocab::VOCAB_TEXT_BLANK)) : text;
                 }
                 default:
                     return std::string();
