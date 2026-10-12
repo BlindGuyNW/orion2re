@@ -3171,6 +3171,104 @@ namespace access::screens {
                 vocab::Get(vocab::VOCAB_CANCEL));
         }
 
+        // ---- Colony landing ------------------------------------------------------------------------
+
+        // COLLAND::Colony_Landing_Screen: the pods landing on a newly settled planet. It waits for a
+        // click, and prints the planet's details only once the animation has nearly finished.
+        bool Landing_Is_Active_() {
+            return MOX::current_screen == SCREEN_COLONY_LANDING && COLLAND::awaiting_input != 0 && COLLAND::l_anims != nullptr &&
+                COLONY::planet_handle >= 0 && COLONY::planet_handle < MAX_PLANETS;
+        }
+
+        std::string Landing_Instance_Key_() {
+            return "landing/" + std::to_string(COLONY::planet_handle);
+        }
+
+        // The title Draw_Colony_Landing_Screen prints across the top.
+        std::string Landing_Name_() {
+            char title[200];
+            snprintf(title, sizeof(title), ESTRINGS::E_Strings(ESTR_COLONY_BUILT_ON_S), HACCESS::Get_Planet_Name(COLONY::planet_handle));
+            return text::Normalize_Game_Text(title);
+        }
+
+        bool Landing_Details_Shown_() {
+            return animate::Get_Animation_Frame_Count(COLLAND::l_anims) - 2 <= animate::Get_Current_Frame(COLLAND::l_anims);
+        }
+
+        // The lines COLLAND::Print_Planet_Data prints.
+        std::vector<std::string> Landing_Details_() {
+            int16_t planet_idx = COLONY::planet_handle;
+            const s_planet_data* planet = &MOX::planet[planet_idx];
+            std::vector<std::string> lines;
+            char line[500];
+            if (planet->colony_index == -1) {
+                snprintf(line, sizeof(line), ESTRINGS::E_Strings(ESTR_S1), HACCESS::Get_Planet_Name(planet_idx));
+            } else {
+                snprintf(line, sizeof(line), ESTRINGS::E_Strings(ESTR_S__S_COLONY), HACCESS::Get_Planet_Name(planet_idx),
+                    MOX::player[MOX::colony[planet->colony_index].owner].race_name);
+            }
+            lines.push_back(text::Normalize_Game_Text(line));
+
+            const char* climate = nullptr;
+            if (planet->colony_index == -1) {
+                if (planet->planet_type != PLANET_TYPE_PLANET) {
+                    lines.push_back(text::Normalize_Game_Text(ESTRINGS::E_Strings(ESTR_GAS_GIANT__UNINHABITABLE)));
+                    return lines;
+                }
+                climate = MOX::planet_climate_string[planet->climate];
+            } else {
+                climate = MOX::planet_climate_string[(uint8_t)MOX::colony[planet->colony_index].climate];
+            }
+            const char* size_climate = MOX::settings.language == 4 ? "%s, %s" : ESTRINGS::E_Strings(ESTR_S_S);
+            snprintf(line, sizeof(line), size_climate, MOX::planet_size_string[planet->size], climate);
+            lines.push_back(text::Normalize_Game_Text(line));
+
+            snprintf(line, sizeof(line), ESTRINGS::E_Strings(ESTR_D_TOTAL_POPULATION),
+                (int)COLCALC::Planet_Max_Population_For_Player(const_cast<s_planet_data*>(planet), MOX::PLAYER_NUM));
+            lines.push_back(text::Normalize_Game_Text(line));
+            snprintf(line, sizeof(line), ESTRINGS::E_Strings(ESTR_MINERAL_S), MOX::mineral_class_string[planet->mineral_class]);
+            lines.push_back(text::Normalize_Game_Text(line));
+            lines.push_back(text::Normalize_Game_Text(MOX::planet_gravity_string[planet->gravity_class]));
+            if (planet->planet_special != SYSTEM_SPECIAL_NO_SPECIAL) {
+                snprintf(line, sizeof(line), ESTRINGS::E_Strings(ESTR_S1), MOX::planet_special_string[planet->planet_special]);
+                lines.push_back(text::Normalize_Game_Text(line));
+            }
+            return lines;
+        }
+
+        void Landing_Build_(graph::GraphBuilder* builder, s_build_context* context) {
+            if (Landing_Details_Shown_()) {
+                std::vector<std::string> lines = Landing_Details_();
+                for (size_t i = 0; i < lines.size(); ++i) {
+                    if (!lines[i].empty()) {
+                        builder->AddItem(graph::ControlId::Structural("landing/detail/" + std::to_string(i)),
+                            Info_Vtable_(std::vector<std::string>{ lines[i] }));
+                    }
+                }
+            }
+            if (Is_Valid_Field_(COLLAND::fields)) {
+                Add_Field_Item_(builder, context, "landing/continue", COLLAND::fields, vocab::Get(vocab::VOCAB_CONTINUE));
+                builder->SetStart(graph::ControlId::Structural("landing/continue"));
+            }
+        }
+
+        // The details appear without a keypress, so they are spoken when they do.
+        bool polled_landing_details = false;
+
+        void Landing_Poll_(bool just_attached) {
+            bool shown = Landing_Details_Shown_();
+            if (shown && (!polled_landing_details || just_attached)) {
+                std::string text;
+                for (const std::string& line : Landing_Details_()) {
+                    if (!line.empty()) {
+                        text += (text.empty() ? "" : ", ") + line;
+                    }
+                }
+                speech::Say(text, false);
+            }
+            polled_landing_details = shown;
+        }
+
         const s_screen_recipe recipes[] = {
             { "text_box", Text_Box_Is_Active_, Text_Box_Instance_Key_, Text_Box_Build_, Text_Box_Name_ },
             { "confirm", Confirmation_Is_Active_, Confirmation_Instance_Key_, Confirmation_Build_, Confirmation_Name_ },
@@ -3181,6 +3279,7 @@ namespace access::screens {
             { "officer_offer", Officer_Offer_Is_Active_, Officer_Offer_Instance_Key_, Officer_Offer_Build_, Officer_Offer_Name_ },
             { "turn_summary", Turn_Summary_Is_Active_, Turn_Summary_Instance_Key_, Turn_Summary_Build_, Turn_Summary_Name_,
                 Turn_Summary_Poll_ },
+            { "landing", Landing_Is_Active_, Landing_Instance_Key_, Landing_Build_, Landing_Name_, Landing_Poll_ },
             { "build", Build_Is_Active_, Build_Instance_Key_, Build_Build_, Build_Name_, Build_Poll_ },
             { "colony", Colony_Is_Active_, Colony_Instance_Key_, Colony_Build_, Colony_Name_, Colony_Poll_ },
             { "research", Research_Is_Active_, Research_Instance_Key_, Research_Build_, Research_Name_ },
