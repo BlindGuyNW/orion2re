@@ -41,6 +41,9 @@ namespace access::screens {
     // Label precedence: what the game draws on the field, then its help title, then its hotkey.
     std::string Field_Label(int16_t field_idx);
 
+    // Speaks a HELP.LBX record's title and text, or that there is no help.
+    void Speak_Help_Record(int16_t help_id);
+
     void Speak_Field_Help(int16_t field_idx);
 
     // A node over one live game field: activation goes through the game's own hotkey path.

@@ -162,12 +162,14 @@ namespace access::screens {
         return label;
     }
 
-    void Speak_Field_Help(int16_t field_idx) {
+    void Speak_Help_Record(int16_t help_id) {
         help::s_help_text help_text;
-        bool found = Is_Valid_Field(field_idx) &&
-            help::Read_Help_Text(Field_Help_Id(&fields::fields[field_idx]), &help_text) &&
-            !help_text.body.empty();
+        bool found = help::Read_Help_Text(help_id, &help_text) && !help_text.body.empty();
         speech::Say(found ? help_text.title + ". " + help_text.body : std::string(vocab::Get(vocab::VOCAB_NO_TOOLTIP)), true);
+    }
+
+    void Speak_Field_Help(int16_t field_idx) {
+        Speak_Help_Record(Is_Valid_Field(field_idx) ? Field_Help_Id(&fields::fields[field_idx]) : -1);
     }
 
     graph::NodeVtable Field_Vtable(int16_t field_idx, const std::string& label) {

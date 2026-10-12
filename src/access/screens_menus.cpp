@@ -100,25 +100,40 @@ namespace access::screens {
 
         // Each setting is a hidden field over its picture plus a click-thru field over its label
         // strip; both cycle the same value forward, and the game draws the value's string itself.
+        // ERICHELP's help list gives the tech level box the Prewarp record (550) whatever is
+        // selected. HELP.LBX has one per level, in reverse order, and a general one (551) for
+        // orion2re's Post-warp level, which has none. The buttons run Pre-warp, Average,
+        // Post-warp, Advanced.
+        int16_t Tech_Level_Help_Id_() {
+            switch (NEWGAME::civ_button_variable) {
+                case 0: return 550;
+                case 1: return 549;
+                case 3: return 548;
+                default: return 551;
+            }
+        }
+
         struct s_new_game_setting {
             int32_t field_slot;
             const char* key;
             char** strings;
             int16_t* value;
             int16_t count;
+            // Optional. The help record for the current value, where the help list's is wrong.
+            int16_t (*Help_Id)();
         };
 
         const s_new_game_setting new_game_settings[] = {
             { 0, "new_game/difficulty", NEWGAME::diff_button_strings, &NEWGAME::diff_button_variable,
-                (int16_t)(sizeof(NEWGAME::diff_button_strings) / sizeof(NEWGAME::diff_button_strings[0])) },
+                (int16_t)(sizeof(NEWGAME::diff_button_strings) / sizeof(NEWGAME::diff_button_strings[0])), nullptr },
             { 1, "new_game/galaxy_size", NEWGAME::gal_size_button_strings, &NEWGAME::gal_size_button_variable,
-                (int16_t)(sizeof(NEWGAME::gal_size_button_strings) / sizeof(NEWGAME::gal_size_button_strings[0])) },
+                (int16_t)(sizeof(NEWGAME::gal_size_button_strings) / sizeof(NEWGAME::gal_size_button_strings[0])), nullptr },
             { 2, "new_game/galaxy_age", NEWGAME::gal_age_button_strings, &NEWGAME::gal_age_button_variable,
-                (int16_t)(sizeof(NEWGAME::gal_age_button_strings) / sizeof(NEWGAME::gal_age_button_strings[0])) },
+                (int16_t)(sizeof(NEWGAME::gal_age_button_strings) / sizeof(NEWGAME::gal_age_button_strings[0])), nullptr },
             { 3, "new_game/players", NEWGAME::opp_button_strings, &NEWGAME::opp_button_variable,
-                (int16_t)(sizeof(NEWGAME::opp_button_strings) / sizeof(NEWGAME::opp_button_strings[0])) },
+                (int16_t)(sizeof(NEWGAME::opp_button_strings) / sizeof(NEWGAME::opp_button_strings[0])), nullptr },
             { 5, "new_game/tech_level", NEWGAME::civ_button_strings, &NEWGAME::civ_button_variable,
-                (int16_t)(sizeof(NEWGAME::civ_button_strings) / sizeof(NEWGAME::civ_button_strings[0])) },
+                (int16_t)(sizeof(NEWGAME::civ_button_strings) / sizeof(NEWGAME::civ_button_strings[0])), Tech_Level_Help_Id_ },
         };
 
         struct s_new_game_toggle {
@@ -203,7 +218,11 @@ namespace access::screens {
                 vtable.Announcements.back().Kind = Label;
                 vtable.Announcements.push_back(graph::NodeAnnouncement([setting]() { return New_Game_Setting_Value_(setting); }, true, Value));
                 vtable.OnActivate = [field_idx]() { navigator::Request_Field_Activation(field_idx); };
-                vtable.OnTooltip = [field_idx]() { Speak_Field_Help(field_idx); };
+                if (setting->Help_Id != nullptr) {
+                    vtable.OnTooltip = [setting]() { Speak_Help_Record(setting->Help_Id()); };
+                } else {
+                    vtable.OnTooltip = [field_idx]() { Speak_Field_Help(field_idx); };
+                }
 
                 context->node_fields[setting->key] = field_idx;
                 builder->AddItem(graph::ControlId::Structural(setting->key), vtable);
