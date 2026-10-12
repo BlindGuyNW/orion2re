@@ -6,6 +6,7 @@ namespace COLONY {
     int16_t _shortcut_previous_colony;
     int16_t _shortcut_next_colony;
     int16_t _shortcut_return;
+    uint8_t awaiting_input;
 
     bool __cdecl Prompt_For_Autobuild_Queue(int16_t colony_idx) {
         if (colony_idx < 0 || colony_idx >= MOX::NUM_COLONIES) {
@@ -331,7 +332,9 @@ namespace COLONY {
             Draw_Colony_Screen();
             RUSS::Mox_Sync_Update();
 
+            awaiting_input = 1;
             input_val = fields::Get_Input();
+            awaiting_input = 0;
             scanned_val = fields::Scan_Input();
             input_received = (input_val != 0);
 

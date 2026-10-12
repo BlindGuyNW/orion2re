@@ -19,6 +19,7 @@ namespace fields {
             return hotkey;
         }
 
+        int16_t Click_Scroll_Field_(int16_t field_idx, int16_t ptr_x, int16_t ptr_y);
         int16_t Press_Field_By_Hotkey_(int16_t field_idx, int16_t ptr_x, int16_t ptr_y);
         int16_t Right_Click_Field_(int16_t field_idx);
     } // namespace
@@ -190,8 +191,13 @@ namespace fields {
         int16_t access_field = 0;
         bool access_secondary = false;
         if (access::navigator::Take_Field_Activation(&access_field, &access_secondary) && access_field > 0 && access_field < fields_count) {
-            input_result = access_secondary ? Right_Click_Field_(access_field)
-                                            : Press_Field_By_Hotkey_(access_field, mouse::Pointer_X(), mouse::Pointer_Y());
+            if (access_secondary) {
+                input_result = Right_Click_Field_(access_field);
+            } else if (fields[access_field].field_type == FIELD_TYPE_SCROLL) {
+                input_result = Click_Scroll_Field_(access_field, mouse::Pointer_X(), mouse::Pointer_Y());
+            } else {
+                input_result = Press_Field_By_Hotkey_(access_field, mouse::Pointer_X(), mouse::Pointer_Y());
+            }
         } else {
             input_result = Interpret_Mouse_Input();
         }
@@ -909,6 +915,15 @@ namespace fields {
     }
 
     namespace {
+        // A click on a scroll field at the pointer: pressing it sets the bar from the pointer
+        // (Find_Bar_Position), and a release over it returns the field, as Interpret_Mouse_Input
+        // does. Screens such as the colony job rows hit-test that value.
+        int16_t Click_Scroll_Field_(int16_t field_idx, int16_t ptr_x, int16_t ptr_y) {
+            Push_Field_Down(field_idx, ptr_x, ptr_y);
+            down_mouse_button = -1;
+            return field_idx;
+        }
+
         // The hotkey press: draws the field down, applies its toggle, and returns its action value.
         int16_t Press_Field_By_Hotkey_(int16_t field_idx, int16_t ptr_x, int16_t ptr_y) {
             if (fields[field_idx].field_type == FIELD_TYPE_SCROLL) {

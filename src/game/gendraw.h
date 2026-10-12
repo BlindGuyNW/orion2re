@@ -18,6 +18,8 @@ namespace GENDRAW {
     extern int16_t animation_frame;
     extern int16_t direction;
     extern int16_t first_field;
+    // What Confirmation_Box is asking while it waits for input, for the screen reader layer.
+    extern const char* shown_confirmation;
     extern s_animation_header* image_seg[4];
 
     extern s_fieldsav_data message_field_save;

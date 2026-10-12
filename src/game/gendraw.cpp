@@ -8,6 +8,7 @@ namespace GENDRAW {
     int16_t animation_frame;
     int16_t direction;
     int16_t first_field;
+    const char* shown_confirmation;
     s_animation_header* image_seg[4];
     s_fieldsav_data message_field_save;
     MOX2::action_func_t gendraw_af;
@@ -202,6 +203,7 @@ namespace GENDRAW {
         fields::Assign_Auto_Function(Draw_Confirm_Box, 2);
 
         int16_t input;
+        shown_confirmation = text;
         do {
             timer::Mark_Time();
             input = fields::Get_Input();
@@ -210,6 +212,7 @@ namespace GENDRAW {
             }
             timer::Release_Time(2);
         } while (input != first_field && input != second_field);
+        shown_confirmation = nullptr;
 
         Message_Box_Cleanup();
         MOX::FULL_DRAW_SCREEN_FLAG = 1;

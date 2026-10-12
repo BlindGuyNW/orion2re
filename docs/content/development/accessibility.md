@@ -34,12 +34,14 @@ Escape and every other key keep their game meaning. Numeric keypad keys are neve
 
 ## Game integration
 
-The layer touches the game in five places:
+The layer touches the game in these places:
 
 - `platform.cpp` offers each key-down to `access::navigator::Offer_Key_Down()` on the platform thread before translation. A claimed key is queued for the game thread and never reaches the legacy keyboard ring. The claim check reads only atomics, so it never waits for the game thread.
-- `fields::Get_Input()` calls `access::navigator::Tick()` on every poll. A requested activation then runs through the same press path as a field hotkey, so radio and locked toggles, the pressed drawing, the auto function, and the field sound all behave as they would for a keyboard shortcut. A requested right-click follows `Interpret_Mouse_Input`'s order instead: a help box under the pointer opens first, then an enabled cancel returns -1, and otherwise the game reads the negated field index.
+- `fields::Get_Input()` calls `access::navigator::Tick()` on every poll. A requested activation then runs through the same press path as a field hotkey, so radio and locked toggles, the pressed drawing, the auto function, and the field sound all behave as they would for a keyboard shortcut. A scroll field has no hotkey press, so it is clicked at the pointer instead, which sets its value from the pointer as a mouse click would. A requested right-click follows `Interpret_Mouse_Input`'s order instead: a help box under the pointer opens first, then an enabled cancel returns -1, and otherwise the game reads the negated field index.
 - `TEXTBOX::Do_Text_Box()` publishes the title and text it is showing while it waits for input.
 - `TECH::_Tech_Select()` and its callers publish the research areas, Accept button, and open browse list.
+- `GENDRAW::Confirmation_Box()` publishes its question while it waits for input.
+- `COLONY::Colony_Screen()` sets `COLONY::awaiting_input` while its own loop waits for input.
 - `MOX2::thunk_main2()` initializes and shuts down the layer on the game thread.
 
 Keys are claimed only while a cursor is seated, no continuous text field is active, and the game thread has polled fields within the last 300 milliseconds. Text-entry loops, animations, and loads that do not poll fields therefore receive their keys normally.
@@ -65,3 +67,7 @@ The fleet box's stop reads the status line `FLEETPOP::Print_Fleet_Box_Info` draw
 `TEXTBOX::Do_Text_Box` leaves the screen's fields in place under its own full-screen field, so it publishes the title and text it shows in `TEXTBOX::shown_title` and `shown_text` while it waits for input. The text box recipe matches first while those are set, and lists the message one line at a time. Enter on any line dismisses the box, as any click would.
 
 The research screen runs inside whatever loop asked for it, so `TECH::_Tech_Select` publishes its areas in `TECH::shown_entries` while it waits for input, its Accept button in `shown_accept_field`, and the area whose browse list `_Tech_List` has open over it in `shown_list_entry`. The recipe groups each area's technologies under a heading naming the area, the field, and its cost. The area names are drawn as pictures, so they are read from the same `billtext.lbx` messages `_Tech_List` titles its list with, through a reader that skips `JIM::Get_Text_Message`'s frame updates. The game picks a technology from the field under the pointer and the press commits the pick, so Enter also makes that pick with `TECH::Set_Selected_Entry`, in case the press lands before the next draw. Backspace shows a technology's description in the message box.
+
+`GENDRAW::Confirmation_Box` adds its Yes and No fields above the screen's own, so it publishes its question in `GENDRAW::shown_confirmation` while it waits. The confirmation recipe speaks the question as the screen's name and lists the two buttons.
+
+The colony screen's popups (transport, troops, occupation policy, auto build) run nested loops from inside the colony loop without changing `MOX::current_screen`, so the colony recipe matches only while `COLONY::awaiting_input` is set around the loop's own `Get_Input`. Each job row is a scroll field whose value is the x of the press, and `COLONY::Check_Job_Fields` picks up the colonist in that slot together with the identical colonists after it. The recipe lists each row's colonists in the order `COLDRAW::Do_Colony_Info_Pop_Stuff_For_Pop` lays them out, and Enter puts the pointer inside the colonist's slot, using the same squish arithmetic, before pressing the row. Enter on a row's heading picks up its last colonist. While colonists are held the rows become hidden drop fields, so Enter anywhere in a row places them there, and the poll speaks what is held because picking up can remove the focused colonist from its row.

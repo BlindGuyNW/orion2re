@@ -108,6 +108,9 @@ namespace COLONY {
     extern uint8_t valid_colony;
     extern uint8_t field_mode;
     extern int16_t move_colonist;
+    // Set while Colony_Screen's own loop waits for input, for the screen reader layer; popups
+    // that run nested loops from the colony screen leave it clear.
+    extern uint8_t awaiting_input;
 
     void __cdecl Draw_Bldg_CR_Dark(int16_t col, int16_t row);
 
