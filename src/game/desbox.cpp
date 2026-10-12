@@ -26,6 +26,7 @@ namespace DESBOX {
     uint16_t weapon_replacement_mods;
 
     int8_t incr_value;
+    e_shown_box shown_box;
 
     int16_t field_item_scanned;
     int16_t field_item_chosen;
@@ -166,7 +167,9 @@ namespace DESBOX {
         done = 0;
 
         while (done == 0) {
+            shown_box = SHOWN_BOX_SPECIAL_SYSTEMS;
             input_field = fields::Get_Input();
+            shown_box = SHOWN_BOX_NONE;
             scanned_field = fields::Scan_Input();
             field_item_scanned = -1;
 
@@ -1258,7 +1261,9 @@ namespace DESBOX {
         }
 
         while (true) {
+            shown_box = SHOWN_BOX_GENERIC;
             int16_t input = fields::Get_Input();
+            shown_box = SHOWN_BOX_NONE;
             field_item_scanned = (uint16_t)fields::Scan_Input();
 
             if (input < 0) {
@@ -1398,7 +1403,9 @@ namespace DESBOX {
         while (true) {
             if (done_flag != 0) break;
 
+            shown_box = SHOWN_BOX_WEAPONS;
             int16_t input = fields::Get_Input();
+            shown_box = SHOWN_BOX_NONE;
             int16_t scan_input_val = fields::Scan_Input();
 
             if (input == background_field || input == cancel_btn_field) {

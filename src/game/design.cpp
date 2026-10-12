@@ -13,6 +13,7 @@ namespace DESIGN {
     int16_t design_computer_replacement_field;
     int32_t printed_cost;
     uint8_t changed_design_name;
+    uint8_t awaiting_input;
     uint8_t add_size_button_flag[SHIP_SIZE_COUNT];
 
     const char s_comma_space[3] = ", ";

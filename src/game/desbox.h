@@ -13,6 +13,17 @@ namespace DESBOX {
 
     extern int8_t incr_value;
 
+    enum e_shown_box : uint8_t {
+        SHOWN_BOX_NONE,
+        SHOWN_BOX_GENERIC,
+        SHOWN_BOX_WEAPONS,
+        SHOWN_BOX_SPECIAL_SYSTEMS,
+    };
+
+    // Which replacement picker waits for input, for the screen reader layer; message boxes the
+    // pickers open run nested loops that leave it clear.
+    extern e_shown_box shown_box;
+
     extern int16_t field_item_scanned;
     extern int16_t field_item_chosen;
     extern int16_t replacement_box_middle_height;

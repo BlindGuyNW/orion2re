@@ -16,6 +16,9 @@ namespace DESIGN {
     extern int32_t printed_cost;
     extern uint8_t changed_design_name;
     extern uint8_t add_size_button_flag[6];
+    // Set while Design_Screen's own loop waits for input, for the screen reader layer; the
+    // replacement pickers and message boxes it opens run nested loops that leave it clear.
+    extern uint8_t awaiting_input;
 
     extern const char s_comma_space[3];
     extern s_animation_header* dull_plus_button_seg;

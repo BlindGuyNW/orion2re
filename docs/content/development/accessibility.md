@@ -48,6 +48,8 @@ The layer touches the game in these places:
 - `MAINPUPS::Officer_Gains_Level_Popup()` sets `MAINPUPS::level_popup_awaiting_input` while it waits for input.
 - `MAINPUPS::New_Colony_Selection_Popup()` sets `MAINPUPS::selection_popup_awaiting_input` while it waits for input.
 - `COLLAND::Colony_Landing_Screen()` sets `COLLAND::awaiting_input` while its own loop waits for input.
+- `DESIGN::Design_Screen()` sets `DESIGN::awaiting_input` while its own loop waits for input.
+- `DESBOX::Generic_Replacement_Box()`, `Weapons_Replacement_Box()`, and `Special_Systems_Box()` set `DESBOX::shown_box` to say which picker waits for input.
 - `SCIENCE::Science_Room()` publishes its footer and the current discovery's text while it waits for input.
 - `namestar::Input_Box_Popup()` publishes its prompt while it waits for input.
 - `MOX2::thunk_main2()` initializes and shuts down the layer on the game thread.

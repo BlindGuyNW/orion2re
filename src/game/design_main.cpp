@@ -335,7 +335,9 @@ namespace DESIGN {
         int16_t screen_exit_flag = 0;
         do {
             timer::Mark_Time();
+            awaiting_input = 1;
             int16_t input_field = fields::Get_Input();
+            awaiting_input = 0;
             MOX::scanned_field = fields::Scan_Input();
 
             if (changed_design_name == 0) {
