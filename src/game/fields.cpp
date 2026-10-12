@@ -196,6 +196,12 @@ namespace fields {
                 input_result = Right_Click_Field_(access_field);
             } else if (fields[access_field].field_type == FIELD_TYPE_SCROLL) {
                 input_result = Click_Scroll_Field_(access_field, mouse::Pointer_X(), mouse::Pointer_Y());
+            } else if (fields[access_field].field_type == FIELD_TYPE_CONTINUOUS_INPUT) {
+                // A hotkey press never starts typing, so a text field is clicked as the mouse does.
+                Begin_Text_Input_(access_field);
+                down_mouse_button = -1;
+                auto_input_variable = 0;
+                input_result = access_field;
             } else {
                 input_result = Press_Field_By_Hotkey_(access_field, mouse::Pointer_X(), mouse::Pointer_Y());
             }
