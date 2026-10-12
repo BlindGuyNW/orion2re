@@ -20,6 +20,8 @@ namespace access::screens {
             officer_offer_recipe,
             turn_summary_recipe,
             landing_recipe,
+            design_generic_picker_recipe,
+            design_specials_picker_recipe,
             design_recipe,
             build_recipe,
             colony_recipe,

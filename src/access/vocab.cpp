@@ -190,6 +190,10 @@ namespace access::vocab {
             "None",
             "Build available",
             "Build unavailable",
+            "Choose a shield",
+            "Choose a computer",
+            "Choose a special system",
+            "already fitted",
         };
 
         static_assert(sizeof(english_strings) / sizeof(english_strings[0]) == VOCAB_COUNT, "one English string per vocabulary id");
