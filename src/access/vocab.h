@@ -101,6 +101,9 @@ namespace access::vocab {
         VOCAB_SCREEN_RESEARCH,
         VOCAB_RESEARCH_BROWSE,
         VOCAB_ACCEPT,
+        VOCAB_YES,
+        VOCAB_NO,
+        VOCAB_CONFIRM,
 
         VOCAB_COUNT
     };

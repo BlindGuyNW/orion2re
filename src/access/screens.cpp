@@ -1659,8 +1659,38 @@ namespace access::screens {
             }
         }
 
+        // ---- Confirmation box --------------------------------------------------------------------
+
+        // GENDRAW::Confirmation_Box draws its question over the screen and adds its two buttons
+        // above the screen's own fields; the question is spoken as the screen's name.
+        bool Confirmation_Is_Active_() {
+            return GENDRAW::shown_confirmation != nullptr;
+        }
+
+        std::string Confirmation_Instance_Key_() {
+            return std::string("confirm/") + GENDRAW::shown_confirmation;
+        }
+
+        std::string Confirmation_Name_() {
+            std::string question = text::Normalize_Game_Text(GENDRAW::shown_confirmation);
+            return question.empty() ? std::string(vocab::Get(vocab::VOCAB_CONFIRM)) : question;
+        }
+
+        void Confirmation_Build_(graph::GraphBuilder* builder, s_build_context* context) {
+            int16_t yes = GENDRAW::first_field;
+            int16_t no = (int16_t)(yes + 1);
+            if (Is_Valid_Field_(yes)) {
+                Add_Field_Item_(builder, context, "confirm/yes", yes, vocab::Get(vocab::VOCAB_YES));
+            }
+            if (Is_Valid_Field_(no)) {
+                Add_Field_Item_(builder, context, "confirm/no", no, vocab::Get(vocab::VOCAB_NO));
+            }
+            builder->SetStart(graph::ControlId::Structural("confirm/yes"));
+        }
+
         const s_screen_recipe recipes[] = {
             { "text_box", Text_Box_Is_Active_, Text_Box_Instance_Key_, Text_Box_Build_, Text_Box_Name_ },
+            { "confirm", Confirmation_Is_Active_, Confirmation_Instance_Key_, Confirmation_Build_, Confirmation_Name_ },
             { "research", Research_Is_Active_, Research_Instance_Key_, Research_Build_, Research_Name_ },
             { "main_menu", Main_Menu_Is_Active_, Main_Menu_Instance_Key_, Main_Menu_Build_, Main_Menu_Name_ },
             { "new_game", New_Game_Is_Active_, New_Game_Instance_Key_, New_Game_Build_, New_Game_Name_ },

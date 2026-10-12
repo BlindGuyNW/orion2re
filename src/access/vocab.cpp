@@ -99,6 +99,9 @@ namespace access::vocab {
             "Choose research",
             "Browse %1",
             "Accept",
+            "Yes",
+            "No",
+            "Confirm",
         };
 
         static_assert(sizeof(english_strings) / sizeof(english_strings[0]) == VOCAB_COUNT, "one English string per vocabulary id");
