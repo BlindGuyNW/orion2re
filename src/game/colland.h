@@ -8,6 +8,9 @@ namespace COLLAND {
     extern int32_t pod2l_sfx;
     extern int32_t pod1d_sfx;
     extern int16_t fields;
+    // Set while Colony_Landing_Screen's own loop waits for input, for the screen reader layer; the
+    // occupation policy popup it may open first leaves it clear.
+    extern uint8_t awaiting_input;
 
     /** Loads the landing-screen animation sequence from the colony LBX. */
     void __cdecl Load_Anims();

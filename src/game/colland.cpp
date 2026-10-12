@@ -7,6 +7,7 @@ namespace COLLAND {
     int32_t pod2l_sfx;
     int32_t pod1d_sfx;
     int16_t fields;
+    uint8_t awaiting_input;
 
     void __cdecl Print_Planet_Data(int16_t planet_idx) {
         char buffer[500];
@@ -204,7 +205,9 @@ namespace COLLAND {
             animate::Get_Animation_Frame_Count(COLLAND::l_anims);
             animate::Get_Current_Frame(COLLAND::l_anims);
             RUSS::Mox_Sync_Update();
+            awaiting_input = 1;
             input_result = ::fields::Get_Input();
+            awaiting_input = 0;
             ::fields::Scan_Input();
             timer::Release_Time(1);
         } while (input_result == 0);
