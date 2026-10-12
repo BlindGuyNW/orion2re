@@ -49,6 +49,7 @@ The layer touches the game in these places:
 - `MAINPUPS::New_Colony_Selection_Popup()` sets `MAINPUPS::selection_popup_awaiting_input` while it waits for input.
 - `COLLAND::Colony_Landing_Screen()` sets `COLLAND::awaiting_input` while its own loop waits for input.
 - `SCIENCE::Science_Room()` publishes its footer and the current discovery's text while it waits for input.
+- `namestar::Input_Box_Popup()` publishes its prompt while it waits for input.
 - `MOX2::thunk_main2()` initializes and shuts down the layer on the game thread.
 
 Keys are claimed only while a cursor is seated, no continuous text field is active, and the game thread has polled fields within the last 300 milliseconds. Text-entry loops, animations, and loads that do not poll fields therefore receive their keys normally.

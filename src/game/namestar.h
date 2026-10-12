@@ -68,6 +68,8 @@ namespace namestar {
     int8_t __cdecl Can_Change_Star_Name(int16_t star_idx);
 
     extern s_input_box_state input_box;
+    // What Input_Box_Popup asks for while it waits for input, for the screen reader layer.
+    extern const char* shown_prompt;
 
     /* Initializes the shared popup state and draws the input box background. */
     void __cdecl Setup_Input_Box_Popup();

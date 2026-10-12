@@ -3,6 +3,7 @@
 namespace namestar {
 
     s_input_box_state input_box;
+    const char* shown_prompt;
 
     int16_t __cdecl Star_Name_Popup_Screen_Center_X() {
         return 0xb1;
@@ -351,6 +352,7 @@ namespace namestar {
         int16_t popup_action = 0;
         int16_t accept_count = 1;
 
+        shown_prompt = input_box.prompt_text;
         do {
             popup_action = 0;
             int16_t input = fields::Get_Input();
@@ -386,6 +388,7 @@ namespace namestar {
                 }
             }
         } while (popup_action == 0);
+        shown_prompt = nullptr;
 
         strings::Trim(input_box.input_text);
         strlcpy(input_text, input_box.input_text, input_text_size);
