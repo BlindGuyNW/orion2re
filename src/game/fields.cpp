@@ -20,6 +20,7 @@ namespace fields {
         }
 
         int16_t Click_Scroll_Field_(int16_t field_idx, int16_t ptr_x, int16_t ptr_y);
+        void Begin_Text_Input_(int16_t field_idx);
         int16_t Press_Field_By_Hotkey_(int16_t field_idx, int16_t ptr_x, int16_t ptr_y);
         int16_t Right_Click_Field_(int16_t field_idx);
     } // namespace
@@ -924,6 +925,24 @@ namespace fields {
             return field_idx;
         }
 
+        // A click on a continuous text field starts typing into it, or moves typing to it from
+        // another one, starting from the field's buffer.
+        void Begin_Text_Input_(int16_t field_idx) {
+            s_field_cont_input* cont_input = Field_Data_Continuous_Input(&fields[field_idx]);
+            if (input_field_active == 0) {
+                strlcpy(continuous_string, cont_input->buffer, sizeof(continuous_string));
+                input_field_active = 1;
+                cursor_on = 0;
+                cursor_position = 0;
+                active_input_field_number = field_idx;
+            } else if (field_idx != active_input_field_number) {
+                strlcpy(continuous_string, cont_input->buffer, sizeof(continuous_string));
+                cursor_on = 0;
+                cursor_position = 0;
+                active_input_field_number = field_idx;
+            }
+        }
+
         // The hotkey press: draws the field down, applies its toggle, and returns its action value.
         int16_t Press_Field_By_Hotkey_(int16_t field_idx, int16_t ptr_x, int16_t ptr_y) {
             if (fields[field_idx].field_type == FIELD_TYPE_SCROLL) {
@@ -1303,22 +1322,9 @@ namespace fields {
                     case FIELD_TYPE_SCROLL_RETURN:
                         down_mouse_button = -1;
                         return Field_Data_Scroll(&fields[field_idx])->return_value;
-                    case FIELD_TYPE_CONTINUOUS_INPUT: {
-                        s_field_cont_input* cont_input = Field_Data_Continuous_Input(&fields[field_idx]);
-                        if (input_field_active == 0) {
-                            strlcpy(continuous_string, cont_input->buffer, sizeof(continuous_string));
-                            input_field_active = 1;
-                            cursor_on = 0;
-                            cursor_position = 0;
-                            active_input_field_number = field_idx;
-                        } else if (field_idx != active_input_field_number) {
-                            strlcpy(continuous_string, cont_input->buffer, sizeof(continuous_string));
-                            cursor_on = 0;
-                            cursor_position = 0;
-                            active_input_field_number = field_idx;
-                        }
+                    case FIELD_TYPE_CONTINUOUS_INPUT:
+                        Begin_Text_Input_(field_idx);
                         break;
-                    }
                     default:
                         if (input_field_active != 0) {
                             int16_t len = 0;
